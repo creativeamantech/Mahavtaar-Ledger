@@ -23,10 +23,13 @@ const MORE_TABS = [
 
 export function BottomNav() {
   const location = useLocation();
-  const { hasPermission, logout } = useAuth();
+  const { hasPermission, logout, user } = useAuth();
 
-  const visibleTabs = BOTTOM_TABS.filter(t => hasPermission(t.view));
-  const visibleMore = MORE_TABS.filter(t => hasPermission(t.view));
+  const isExecView = (view: string) => view === VIEWS.EXEC_DASHBOARD || view === VIEWS.EXEC_TEAM_PERF;
+  const isExec = user?.role === 'EXECUTIVE';
+
+  const visibleTabs = BOTTOM_TABS.filter(t => hasPermission(t.view) && (!isExecView(t.view) || isExec));
+  const visibleMore = MORE_TABS.filter(t => hasPermission(t.view) && (!isExecView(t.view) || isExec));
 
   return (
     <div className="bottom-nav fixed bottom-0 left-0 right-0 z-50 flex border-t border-[rgba(255,255,255,0.08)] bg-sidebar md:hidden">
