@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import {
+  useState, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
 import { AppLayout } from '../components/layout/AppLayout';
 import { calculateRow } from '../lib/calculations';

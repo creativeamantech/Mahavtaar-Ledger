@@ -64,7 +64,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           keys.add(keysArray[j]);
         }
       }
-      setSchema(Array.from(keys).sort());
+      setSchema(Array.from(keys));
     } else {
       setSchema([]);
     }
@@ -228,7 +228,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
 
   const bulkUpdateRecords = useCallback(async (updates: {agreementid: string, field: string, value: any}[], userName: string) => {
-    let newAudits: AuditEntry[] = [];
+    const newAudits: AuditEntry[] = [];
     const updateMap = new Map();
     
     updates.forEach(u => {
@@ -239,7 +239,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateMap.get(u.agreementid)[`${u.field}_source`] = 'MANUAL';
     });
 
-    let updatedRecords: any[] = [];
+    const updatedRecords: any[] = [];
 
     setRecords(prev => {
       const next = prev.map(r => {
@@ -278,8 +278,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setTarget = useCallback(async (key: string, pct: number, _userName: string) => {
-    setTargets(prev => ({ ...prev, [key]: pct }));
-    await db.state_targets.put({ key, pct, updatedAt: new Date().toISOString() });
+    if (pct <= 0) {
+      setTargets(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      await db.state_targets.delete(key);
+    } else {
+      setTargets(prev => ({ ...prev, [key]: pct }));
+      await db.state_targets.put({ key, pct, updatedAt: new Date().toISOString() });
+    }
   }, []);
 
   
@@ -289,7 +298,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setUndoStack(prev => prev.slice(0, -1));
     setRedoStack(prev => [...prev, action]);
 
-    let updatedRecords: any[] = [];
+    const updatedRecords: any[] = [];
     const updateMap = new Map();
     action.audits.forEach(a => {
       if (!updateMap.has(a.agreementid)) updateMap.set(a.agreementid, {});
@@ -320,7 +329,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setRedoStack(prev => prev.slice(0, -1));
     setUndoStack(prev => [...prev, action]);
 
-    let updatedRecords: any[] = [];
+    const updatedRecords: any[] = [];
     const updateMap = new Map();
     action.audits.forEach(a => {
       if (!updateMap.has(a.agreementid)) updateMap.set(a.agreementid, {});

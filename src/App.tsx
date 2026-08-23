@@ -15,7 +15,12 @@ import DataExplorer from "./pages/DataExplorer";
 import Assignment from "./pages/Assignment";
 import BandExplorer from "./pages/BandExplorer";
 import SettingsPage from "./pages/Settings";
+import LiveMonitoring from "./pages/LiveMonitoring";
+import AllFeedback from "./pages/AllFeedback";
+import Attendance from "./pages/Attendance";
+import Profile from "./pages/Profile";
 import AuditLog from "./pages/AuditLog";
+import CustomerDetail from "./pages/CustomerDetail";
 import NotFound from "./pages/NotFound";
 import { PermissionGate } from "./components/PermissionGate";
 import { VIEWS } from "./constants/permissions";
@@ -41,8 +46,13 @@ function AppRoutes() {
       <Route path="/team-pivot" element={<ProtectedRoute view={VIEWS.TEAM_PIVOT}><TeamPivot /></ProtectedRoute>} />
       <Route path="/band-explorer" element={<ProtectedRoute view={VIEWS.CITY_TEAM_MATRIX}><BandExplorer /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute view={VIEWS.SETTINGS}><SettingsPage /></ProtectedRoute>} />
+      <Route path="/live-monitoring" element={<ProtectedRoute view={VIEWS.LIVE_MONITORING}><LiveMonitoring /></ProtectedRoute>} />
+      <Route path="/feedbacks" element={<ProtectedRoute view={VIEWS.FEEDBACKS}><AllFeedback /></ProtectedRoute>} />
+      <Route path="/attendance" element={<ProtectedRoute view={VIEWS.ATTENDANCE}><Attendance /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/assignment" element={<ProtectedRoute view={VIEWS.ASSIGNMENT}><Assignment /></ProtectedRoute>} />
       <Route path="/audit" element={<ProtectedRoute view={VIEWS.AUDIT_LOG}><AuditLog /></ProtectedRoute>} />
+      <Route path="/customer/:id" element={<ProtectedRoute><CustomerDetail /></ProtectedRoute>} />
       <Route path="/" element={<Navigate to={user ? (user.role === "EXECUTIVE" ? "/exec-dashboard" : "/dashboard") : "/login"} replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

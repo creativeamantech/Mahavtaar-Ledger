@@ -20,6 +20,8 @@ export function exportCityPivot(cityPivotData: any[]) {
     'Total Paid': c.paid,
     'Total Paid POS': c.paidPOS,
     'Sum of Target': c.target,
+    'Target Date': c.targetDate || '-',
+    'Daily Required POS': c.dailyRequiredPOS || 0,
   }));
   const total = {
     '#': '',
@@ -33,6 +35,8 @@ export function exportCityPivot(cityPivotData: any[]) {
     'Total Paid': cityPivotData.reduce((s, c) => s + c.paid, 0),
     'Total Paid POS': cityPivotData.reduce((s, c) => s + c.paidPOS, 0),
     'Sum of Target': cityPivotData.reduce((s, c) => s + c.target, 0),
+    'Target Date': '-',
+    'Daily Required POS': cityPivotData.reduce((s, c) => s + (c.dailyRequiredPOS || 0), 0),
   };
   rows.push(total);
   exportToExcel(rows, 'City Performance', `City_Performance_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -93,6 +97,8 @@ export function exportBucketCityPivot(data: any[]) {
     'Total POS': c.totalPOS,
     'Paid POS': c.paidPOS,
     'Needed POS': c.target,
+    'Target Date': c.targetDate || '-',
+    'Daily Required POS': c.dailyRequiredPOS || 0,
     'POS Paid Only POS': c.posPaidOnlyPOS,
     'Total %': (c.pct * 100).toFixed(2) + '%'
   }));

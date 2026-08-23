@@ -1,11 +1,14 @@
 import { Undo2, Redo2, ChevronLeft, ChevronRight, Search, Bell, UserCircle, Menu } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../../contexts/DataContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { ThemeToggle } from '../ThemeToggle';
+import { AgentNotifications } from '../agent/AgentNotifications';
 
 export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean; setCollapsed?: (val: boolean | ((prev: boolean) => boolean)) => void }) {
   const { records, undo, redo, canUndo, canRedo, globalBucket, setGlobalBucket } = useData();
+  const { user } = useAuth();
   const location = useLocation();
   const isExplorer = location.pathname === '/explorer';
 
@@ -90,9 +93,9 @@ export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean
         </div>
             </div>
 
-      <div className="flex-1 flex justify-center px-4">
+      <div className="flex-1 flex justify-start sm:justify-center px-4 overflow-x-auto no-scrollbar">
         {availableBuckets.length > 0 && (
-          <div className="flex bg-muted/30 p-1 rounded-lg border border-border">
+          <div className="flex bg-muted/30 p-1 rounded-lg border border-border w-max">
             <button
               onClick={() => setGlobalBucket('ALL')}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${globalBucket === 'ALL' ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:bg-muted'}`}
@@ -178,13 +181,17 @@ export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean
 
         <div className="flex items-center gap-1.5 border-l border-border pl-3">
           <ThemeToggle />
-          <button className="p-2 hover:bg-muted rounded-full transition-colors relative" title="Notifications">
-            <Bell className="h-4 w-4" />
-            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary ring-2 ring-card"></span>
-          </button>
-          <button className="p-1 hover:bg-muted rounded-full transition-colors text-primary ml-1" title="User Profile">
+          {user?.role === 'EXECUTIVE' ? (
+            <AgentNotifications />
+          ) : (
+            <button className="p-2 hover:bg-muted rounded-full transition-colors relative" title="Notifications">
+              <Bell className="h-4 w-4" />
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary ring-2 ring-card"></span>
+            </button>
+          )}
+          <Link to="/profile" className="p-1 hover:bg-muted rounded-full transition-colors text-primary ml-1" title="User Profile">
             <UserCircle className="h-6 w-6" />
-          </button>
+          </Link>
         </div>
       </div>
     </header>

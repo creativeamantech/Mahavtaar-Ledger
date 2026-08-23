@@ -1,5 +1,5 @@
 import { calculateRow } from './calculations';
-import { resolveTargetPct } from './targets';
+import { resolveTarget } from './targets';
 
 export function buildCityPivot(records: any[], targets: Record<string, number> = {}) {
   const map: Record<string, any> = {};
@@ -18,9 +18,11 @@ export function buildCityPivot(records: any[], targets: Record<string, number> =
     map[city].paidPOS += c.mainPaidPOS || 0;
     map[city].rollbackPOS += c.rollbackPOS || 0;
 
-    const xPct = resolveTargetPct(targets, { city: r.city || r.City, state: r.state || r.State, bkt: r.bom_bkt });
+    const tRes = resolveTarget(targets, { city: r.city || r.City, state: r.state || r.State, bkt: r.bom_bkt });
+    const xPct = tRes.pct;
     
     map[city].targetPOS += (posVal * xPct) / 100;
+    if (tRes.date) map[city].targetDate = tRes.date;
   });
   return Object.values(map).map((city: any) => {
     return {
@@ -28,6 +30,19 @@ export function buildCityPivot(records: any[], targets: Record<string, number> =
       pct: city.totalPOS ? city.paidPOS / city.totalPOS : 0,
       rollbackPct: city.totalPOS ? city.rollbackPOS / city.totalPOS : 0,
       target: Math.max(0, city.targetPOS - city.paidPOS),
+      targetDate: city.targetDate,
+      dailyRequiredPOS: (() => {
+        const needed = Math.max(0, city.targetPOS - city.paidPOS);
+        if (needed <= 0) return 0;
+        let days = 1;
+        if (city.targetDate) {
+           const today = new Date().toISOString().split('T')[0];
+           const diff = new Date(city.targetDate).getTime() - new Date(today).getTime();
+           const d = Math.ceil(diff / (1000 * 60 * 60 * 24));
+           days = d > 0 ? d : 1;
+        }
+        return needed / days;
+      })(),
     };
   }).sort((a: any, b: any) => b.count - a.count);
 }
@@ -54,9 +69,12 @@ export function buildTeamPivot(records: any[], targets: Record<string, number> =
       map[key].posPaidOnlyPOS += posVal;
     }
 
-    const xPct = resolveTargetPct(targets, { city: r.city || r.City, state: r.state || r.State, bkt: r.bom_bkt });
+    const tRes = resolveTarget(targets, { city: r.city || r.City, state: r.state || r.State, bkt: r.bom_bkt });
+    const xPct = tRes.pct;
               
     map[key].targetPOS += (posVal * xPct) / 100;
+    if (tRes.date) map[key].targetDate = tRes.date;
+    if (tRes.date) map[key].targetDate = tRes.date;
     
     map[key].cases.push({
       aggr: r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || '-',
@@ -69,7 +87,20 @@ export function buildTeamPivot(records: any[], targets: Record<string, number> =
     .map((e: any) => ({ 
       ...e, 
       pct: e.totalPOS ? e.paidPOS / e.totalPOS : 0,
-      target: Math.max(0, e.targetPOS - e.paidPOS)
+      target: Math.max(0, e.targetPOS - e.paidPOS),
+      targetDate: e.targetDate,
+      dailyRequiredPOS: (() => {
+        const needed = Math.max(0, e.targetPOS - e.paidPOS);
+        if (needed <= 0) return 0;
+        let days = 1;
+        if (e.targetDate) {
+           const today = new Date().toISOString().split('T')[0];
+           const diff = new Date(e.targetDate).getTime() - new Date(today).getTime();
+           const d = Math.ceil(diff / (1000 * 60 * 60 * 24));
+           days = d > 0 ? d : 1;
+        }
+        return needed / days;
+      })()
     }))
     .sort((a: any, b: any) => a.bkt - b.bkt || a.exec.localeCompare(b.exec));
 }
@@ -99,9 +130,11 @@ export function buildCrossTab(records: any[], targets: Record<string, number> = 
     matrix[city][exec].paidPOS += c.teamPaidPOS || 0;
     matrix[city][exec].totalPOS += posVal;
 
-    const xPct = resolveTargetPct(targets, { city: r.city || r.City, state: r.state || r.State, bkt: r.bom_bkt });
+    const tRes = resolveTarget(targets, { city: r.city || r.City, state: r.state || r.State, bkt: r.bom_bkt });
+    const xPct = tRes.pct;
               
     matrix[city][exec].targetPOS += (posVal * xPct) / 100;
+    if (tRes.date) matrix[city][exec].targetDate = tRes.date;
   });
 
   // Calculate needed POS (target) for each cell
@@ -142,15 +175,31 @@ export function buildBucketCityPivot(records: any[], targets: Record<string, num
       map[key].posPaidOnlyPOS += posVal;
     }
 
-    const xPct = resolveTargetPct(targets, { city: r.city || r.City, state: r.state || r.State, bkt: r.bom_bkt });                  
+    const tRes = resolveTarget(targets, { city: r.city || r.City, state: r.state || r.State, bkt: r.bom_bkt });
+    const xPct = tRes.pct;                  
     map[key].targetPOS += (posVal * xPct) / 100;
+    if (tRes.date) map[key].targetDate = tRes.date;
+    if (tRes.date) map[key].targetDate = tRes.date;
   });
 
   return Object.values(map)
     .map((e: any) => ({ 
        ...e, 
        pct: e.totalPOS ? e.paidPOS / e.totalPOS : 0,
-      target: Math.max(0, e.targetPOS - e.paidPOS)
+      target: Math.max(0, e.targetPOS - e.paidPOS),
+      targetDate: e.targetDate,
+      dailyRequiredPOS: (() => {
+        const needed = Math.max(0, e.targetPOS - e.paidPOS);
+        if (needed <= 0) return 0;
+        let days = 1;
+        if (e.targetDate) {
+           const today = new Date().toISOString().split('T')[0];
+           const diff = new Date(e.targetDate).getTime() - new Date(today).getTime();
+           const d = Math.ceil(diff / (1000 * 60 * 60 * 24));
+           days = d > 0 ? d : 1;
+        }
+        return needed / days;
+      })()
     }))
     .sort((a: any, b: any) => a.bkt - b.bkt || a.city.localeCompare(b.city));
 }
@@ -172,6 +221,11 @@ export function buildExecCityPivot(records: any[], targets: Record<string, numbe
     const posVal = Number(r.principal_outstanding) || 0;
     map[key].totalPOS += posVal;
     
+    const tRes = resolveTarget(targets, { city: r.city || r.City, state: r.state || r.State, bkt: r.bom_bkt });
+    const xPct = tRes.pct;
+    map[key].targetPOS += (posVal * xPct) / 100;
+    if (tRes.date) map[key].targetDate = tRes.date;
+    
     // Evaluate based on teamPaid, because this is the team's performance on the city
     if (c.teamPaid === 1) {
       map[key].paid += 1;
@@ -183,10 +237,24 @@ export function buildExecCityPivot(records: any[], targets: Record<string, numbe
     }
   });
 
-  return Object.values(map).map(m => {
-    const target = targets[`${m.bkt}_${m.city}`] || 0;
-    const targetAmt = m.totalPOS * (target / 100);
-    const needed = Math.max(0, targetAmt - m.paidPOS);
-    return { ...m, target: needed, pct: m.totalPOS ? m.paidPOS / m.totalPOS : 0 };
+  return Object.values(map).map(e => {
+      return {
+        ...e,
+        pct: e.totalPOS ? e.paidPOS / e.totalPOS : 0,
+        target: Math.max(0, e.targetPOS - e.paidPOS),
+        targetDate: e.targetDate,
+        dailyRequiredPOS: (() => {
+          const needed = Math.max(0, e.targetPOS - e.paidPOS);
+          if (needed <= 0) return 0;
+          let days = 1;
+          if (e.targetDate) {
+             const today = new Date().toISOString().split('T')[0];
+             const diff = new Date(e.targetDate).getTime() - new Date(today).getTime();
+             const d = Math.ceil(diff / (1000 * 60 * 60 * 24));
+             days = d > 0 ? d : 1;
+          }
+          return needed / days;
+        })()
+      };
   });
 }

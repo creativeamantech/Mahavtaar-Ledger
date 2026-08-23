@@ -286,7 +286,7 @@ export default function DataEntry() {
         </div>
         <select value={bucketFilter} onChange={e => setBucketFilter(e.target.value)} className="h-9 w-full sm:w-auto bg-background border rounded-md px-3 py-1 text-sm focus:border-accent focus:ring-1 focus:ring-accent font-sans text-xs outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer">
           <option value="all">All Buckets</option>
-          {[1, 2, 3, 4, 5].map(b => <option key={b} value={b}>Bucket {b}</option>)}
+          {[1, 2, 3, 4, 5].map((b, i) => <option key={b} value={b}>Bucket {b}</option>)}
         </select>
         <select value={paidFilter} onChange={e => setPaidFilter(e.target.value)} className="h-9 w-full sm:w-auto bg-background border rounded-md px-3 py-1 text-sm focus:border-accent focus:ring-1 focus:ring-accent font-sans text-xs outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer">
           <option value="all">All Status</option>
@@ -295,7 +295,7 @@ export default function DataEntry() {
         </select>
         <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} className="h-9 w-full sm:w-auto bg-background border rounded-md px-3 py-1 text-sm focus:border-accent focus:ring-1 focus:ring-accent font-sans text-xs outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer">
           <option value="all">All Cities</option>
-          {cities.map(c => <option key={c} value={c}>{c}</option>)}
+          {cities.map((c, i) => <option key={c} value={c}>{c}</option>)}
         </select>
         <select value={conflictFilter} onChange={e => setConflictFilter(e.target.value)} className="h-9 w-full sm:w-auto bg-background border rounded-md px-3 py-1 text-sm focus:border-accent focus:ring-1 focus:ring-accent font-sans text-xs outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer">
           <option value="all">All Items</option>

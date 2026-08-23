@@ -97,3 +97,53 @@ export function findMatchingRecordsCountAccurate(
   }
   return count;
 }
+
+
+export interface ResolvedTarget {
+  pct: number;
+  date: string | null;
+}
+
+export function resolveTarget(
+  targets: Record<string, number>,
+  row: { city?: string; state?: string; bkt?: string }
+): ResolvedTarget {
+  const city = normalizeKeyPart(row.city);
+  const state = normalizeKeyPart(row.state);
+  const bkt = normalizeKeyPart(row.bkt);
+
+  const baseKeys = [
+    city && bkt ? `CITY__${city}__BKT__${bkt}` : null,
+    state && bkt ? `STATE__${state}__BKT__${bkt}` : null,
+    bkt ? `GLOBAL__BKT__${bkt}` : null,
+    city ? `CITY__${city}` : null,
+    state ? `STATE__${state}` : null,
+    'GLOBAL'
+  ].filter(Boolean) as string[];
+
+  const today = new Date().toISOString().split('T')[0];
+
+  for (const baseKey of baseKeys) {
+    const matchingTargets = Object.entries(targets)
+      .filter(([k]) => k === baseKey || k.startsWith(`${baseKey}@@`))
+      .map(([k, pct]) => {
+         const parts = k.split('@@');
+         return { pct, date: parts.length > 1 ? parts[1] : null };
+      });
+    
+    if (matchingTargets.length > 0) {
+      matchingTargets.sort((a, b) => {
+         if (!a.date) return -1;
+         if (!b.date) return 1;
+         return a.date.localeCompare(b.date);
+      });
+      
+      const upcoming = matchingTargets.find(t => t.date && t.date >= today);
+      if (upcoming) return upcoming;
+      
+      return matchingTargets[matchingTargets.length - 1];
+    }
+  }
+
+  return { pct: 0, date: null };
+}

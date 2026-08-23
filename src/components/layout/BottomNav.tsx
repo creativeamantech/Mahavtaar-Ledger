@@ -1,10 +1,10 @@
 
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Building2, Users, MoreHorizontal } from 'lucide-react';
+import { LayoutDashboard, FileText, Building2, Users, MoreHorizontal, Database, Activity, Settings, ClipboardList } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { VIEWS } from '../../constants/permissions';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../ui/sheet';
-import { Grid3X3, Settings, ClipboardList, Activity } from 'lucide-react';
+
 
 const BOTTOM_TABS = [
   { label: 'Home', icon: LayoutDashboard, path: '/dashboard', view: VIEWS.DASHBOARD },
@@ -15,10 +15,15 @@ const BOTTOM_TABS = [
 ];
 
 const MORE_TABS = [
+  { label: 'Assignment', icon: Users, path: '/assignment', view: VIEWS.ASSIGNMENT },
   { label: 'Team Perf', icon: Activity, path: '/exec-team-perf', view: VIEWS.EXEC_TEAM_PERF },
+  { label: 'Data Explorer', icon: Database, path: '/explorer', view: VIEWS.DATA_EXPLORER },
+  { label: 'Band Analysis', icon: Activity, path: '/band-explorer', view: VIEWS.CITY_TEAM_MATRIX },
+  { label: 'Live Monitoring', icon: Activity, path: '/live-monitoring', view: VIEWS.LIVE_MONITORING },
+  { label: 'All Feedback', icon: ClipboardList, path: '/feedbacks', view: VIEWS.FEEDBACKS },
+  { label: 'Attendance', icon: Activity, path: '/attendance', view: VIEWS.ATTENDANCE },
   { label: 'Settings', icon: Settings, path: '/settings', view: VIEWS.SETTINGS },
   { label: 'Audit Log', icon: ClipboardList, path: '/audit', view: VIEWS.AUDIT_LOG },
-  { label: 'Band Analysis', icon: Activity, path: '/band-explorer', view: VIEWS.CITY_TEAM_MATRIX },
 ];
 
 export function BottomNav() {
@@ -55,7 +60,7 @@ export function BottomNav() {
             <SheetHeader>
               <SheetTitle className="text-left text-sidebar-foreground">More Options</SheetTitle>
             </SheetHeader>
-            <div className="mt-4 flex flex-col gap-2 pb-8">
+            <div className="mt-4 flex flex-col gap-2 pb-8 max-h-[70vh] overflow-y-auto scrollbar-thin">
               {visibleMore.map(tab => {
                 const active = location.pathname === tab.path;
                 return (

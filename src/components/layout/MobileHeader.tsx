@@ -17,6 +17,9 @@ const PAGE_TITLES: Record<string, string> = {
   '/band-explorer': 'Bands',
   '/settings': 'Settings',
   '/audit': 'Audit Log',
+  '/live-monitoring': 'Live Monitoring',
+  '/feedbacks': 'All Feedback',
+  '/attendance': 'Attendance',
 };
 
 export function MobileHeader() {

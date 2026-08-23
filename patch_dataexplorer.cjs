@@ -1,20 +1,20 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/pages/DataExplorer.tsx', 'utf-8');
+let code = fs.readFileSync('src/pages/DataExplorer.tsx', 'utf8');
 
-code = code.replace(
-    "const { records, isLoading, globalBucket } = useData();",
-    "const { records, isLoading } = useData();"
+// Replace setSelectedRecord calls with a function that routes
+code = code.replace("const [selectedRecord, setSelectedRecord] = useState<any | null>(null);", 
+  "const [selectedRecord, setSelectedRecord] = useState<any | null>(null);\n  const navigate = useNavigate();\n  const handleRowClick = (r: any) => {\n    sessionStorage.setItem('currentCaseList', JSON.stringify(filteredRecords.map(rec => rec.agreementid)));\n    navigate(`/customer/${r.agreementid}?${searchParams.toString()}`);\n  };"
 );
 
-code = code.replace(
-    "let recs = records;\n    if (globalBucket !== 'ALL') {\n        recs = recs.filter((r: any) => String(r.bom_bkt).trim().toUpperCase() === globalBucket);\n    }\n    if (isExecutive() && user) return recs.filter((r: any) => r.executive_name === user.name);\n    return recs;",
-    "if (isExecutive() && user) return records.filter((r: any) => r.executive_name === user.name);\n    return records;"
-);
+// Replace the imports to include useNavigate
+code = code.replace("import { useSearchParams } from 'react-router-dom';", "import { useSearchParams, useNavigate } from 'react-router-dom';");
 
-code = code.replace(
-    "[records, user, isExecutive, globalBucket]",
-    "[records, user, isExecutive]"
-);
+// Replace onClick handlers
+code = code.replace(/setSelectedRecord\(r\)/g, "handleRowClick(r)");
+
+// Remove Sheet entirely since we don't need it. But it might be tricky to regex it out perfectly, 
+// so let's just leave it there (it won't open since selectedRecord will never be set).
+// Actually, I can just replace `open={!!selectedRecord}` with `open={false}` to be safe.
+code = code.replace("open={!!selectedRecord}", "open={false}");
 
 fs.writeFileSync('src/pages/DataExplorer.tsx', code);
-console.log("Patched DataExplorer to remove globalBucket dependency");

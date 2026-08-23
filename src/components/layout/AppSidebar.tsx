@@ -34,6 +34,14 @@ const NAV_GROUPS = [
     ]
   },
   {
+    title: 'Monitoring & QA',
+    items: [
+      { label: 'Live Monitoring', icon: Activity, path: '/live-monitoring', view: VIEWS.LIVE_MONITORING },
+      { label: 'All Feedback', icon: ClipboardList, path: '/feedbacks', view: VIEWS.FEEDBACKS },
+      { label: 'Attendance', icon: Activity, path: '/attendance', view: VIEWS.ATTENDANCE },
+    ]
+  },
+  {
     title: 'Settings',
     items: [
       { label: 'System Config', icon: Settings, path: '/settings', view: VIEWS.SETTINGS },

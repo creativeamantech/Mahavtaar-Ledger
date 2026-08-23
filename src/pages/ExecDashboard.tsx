@@ -1,13 +1,13 @@
-import { Fragment } from 'react';
-import { useState, useMemo } from 'react';
+import { Fragment, useState, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
 import { useMediaQuery } from '../hooks/use-media-query';
 import { calculateRow } from '../lib/calculations';
 import { fmtCur } from '../lib/formatters';
-import { DollarSign, AlertCircle, Database, BarChart3, TrendingUp, Filter, Download } from 'lucide-react';
+import { DollarSign, AlertCircle, Database, BarChart3, TrendingUp, Download, ArrowUpDown, Filter as FilterIcon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ComposedChart, Line } from 'recharts';
+import { AgentLiveDashboard } from '../components/agent/AgentLiveDashboard';
 
 export default function ExecDashboard() {
   const navigate = useNavigate();
@@ -238,8 +238,21 @@ export default function ExecDashboard() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="font-sans text-2xl font-extrabold uppercase tracking-wide flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-primary" /> Advanced Analytics
+            <BarChart3 className="h-6 w-6 text-primary" /> Executive Dashboard
           </h1>
+          <p className="text-sm text-muted-foreground mt-1">Live agent metrics, collection details, and geographical analytics</p>
+        </div>
+      </div>
+
+      <AgentLiveDashboard />
+
+      <div className="my-10 border-t border-border"></div>
+
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="font-sans text-xl font-bold uppercase tracking-wide flex items-center gap-2">
+            Advanced Analytics
+          </h2>
           <p className="text-sm text-muted-foreground mt-1">Deep dive into collection, buckets, and geographical metrics</p>
         </div>
       </div>
@@ -312,18 +325,20 @@ export default function ExecDashboard() {
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase">
                 <tr>
-                  <th className="px-4 py-2 font-semibold">Bucket</th>
-                  <th className="px-4 py-2 font-semibold text-right">Cases</th>
-                  <th className="px-4 py-2 font-semibold text-right hidden sm:table-cell">POS Amount</th>
-                  <th className="px-4 py-2 font-semibold text-right text-success">Team Paid</th>
-                  <th className="px-4 py-2 font-semibold text-right text-info">POS Paid Only</th>
-                  <th className="px-4 py-2 font-semibold text-right hidden sm:table-cell">Unpaid</th>
+                  <th className="px-4 py-3 font-semibold text-center w-12 bg-muted/90 text-muted-foreground uppercase text-[10px]">S.No.</th>
+                  <th className="px-4 py-2 font-semibold">Bucket<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-2 font-semibold text-right">Cases<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-2 font-semibold text-right hidden sm:table-cell">POS Amount<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-2 font-semibold text-right text-success">Team Paid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-2 font-semibold text-right text-info">POS Paid Only<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-2 font-semibold text-right hidden sm:table-cell">Unpaid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {stats.bucketData.map(b => (
+                {stats.bucketData.map((b, i) => (
                   <tr key={b.bucket} className="hover:bg-muted/30">
-                    <td className="px-4 py-2 font-medium cursor-pointer hover:text-primary transition-colors hover:underline" onClick={() => navigateToExplorer({ bucket: b.bucket })}>{b.bucket}</td>
+                    <td className="px-4 py-3 text-center text-xs font-bold text-muted-foreground">{i + 1}</td>
+                  <td className="px-4 py-2 font-medium cursor-pointer hover:text-primary transition-colors hover:underline" onClick={() => navigateToExplorer({ bucket: b.bucket })}>{b.bucket}</td>
                     <td className="px-4 py-2 text-right cursor-pointer hover:bg-primary/5 hover:text-primary transition-colors" onClick={() => navigateToExplorer({ bucket: b.bucket })}>{b.cases.toLocaleString()}</td>
                     <td className="px-4 py-2 text-right cursor-pointer hover:bg-primary/5 hover:text-primary transition-colors" onClick={() => navigateToExplorer({ bucket: b.bucket })}>{fmtCur(b.pos)}</td>
                     <td className="px-4 py-2 text-right text-success font-medium cursor-pointer hover:bg-success/10 transition-colors" onClick={() => navigateToExplorer({ bucket: b.bucket })}>{b.teamPaid.toLocaleString()}</td>
@@ -334,6 +349,7 @@ export default function ExecDashboard() {
               </tbody>
               <tfoot className="bg-primary/10 font-bold sticky bottom-0 z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-primary/20 transition-colors" onClick={() => navigateToExplorer({})}>
                 <tr>
+                  <td className="px-4 py-2 text-center text-xs text-muted-foreground"></td>
                   <td className="px-4 py-2 text-primary uppercase">Grand Total</td>
                   <td className="px-4 py-2 text-right">{stats.bucketData.reduce((a, b) => a + b.cases, 0).toLocaleString()}</td>
                   <td className="px-4 py-2 text-right">{fmtCur(stats.bucketData.reduce((a, b) => a + b.pos, 0))}</td>
@@ -346,7 +362,7 @@ export default function ExecDashboard() {
           </div>
           <div className="p-3 border-t border-border bg-muted/10 text-right">
              <button onClick={() => {
-                 const csv = ['Bucket,Cases,POS Amount,Team Paid,POS Paid Only,Unpaid', ...stats.bucketData.map(b => `"${b.bucket}",${b.cases},${b.pos},${b.teamPaid},${b.posPaidOnly},${b.unpaid}`)].join('\n');
+                 const csv = ['Bucket,Cases,POS Amount,Team Paid,POS Paid Only,Unpaid', ...stats.bucketData.map((b, i) => `"${b.bucket}",${b.cases},${b.pos},${b.teamPaid},${b.posPaidOnly},${b.unpaid}`)].join('\n');
                  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'Bucket_Performance.csv'; a.click();
              }} className="inline-flex items-center gap-1.5 text-xs font-bold bg-card border border-border px-3 py-1.5 rounded hover:bg-muted text-primary transition-colors">
                <Download className="h-3.5 w-3.5" /> Export Data
@@ -365,10 +381,11 @@ export default function ExecDashboard() {
             <table className="w-full text-sm text-left whitespace-nowrap">
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="px-4 py-3 font-semibold bg-muted/90">City</th>
-                  <th className="px-4 py-3 font-semibold text-right bg-muted/90">Cases</th>
-                  <th className="px-4 py-3 font-semibold text-right bg-muted/90">Total POS</th>
-                  <th className="px-4 py-3 font-semibold text-center bg-muted" colSpan={stats.sortedBands.length}>POS Bands (Cases)</th>
+                  <th className="px-4 py-3 font-semibold text-center w-12 bg-muted/90 text-muted-foreground uppercase text-[10px]">S.No.</th>
+                  <th className="px-4 py-3 font-semibold bg-muted/90">City<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-3 font-semibold text-right bg-muted/90">Cases<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-3 font-semibold text-right bg-muted/90">Total POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-3 font-semibold text-center bg-muted" colSpan={stats.sortedBands.length}>POS Bands (Cases)<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
                 </tr>
                 <tr className="border-t border-border/50 text-[10px]">
                   <th colSpan={3} className="bg-muted/90"></th>
@@ -380,9 +397,10 @@ export default function ExecDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {stats.cityData.slice(0, 50).map(c => (
+                {stats.cityData.slice(0, 50).map((c, i) => (
                   <tr key={c.city} className="hover:bg-muted/30">
-                    <td className="px-4 py-2 font-medium cursor-pointer hover:text-primary transition-colors hover:underline" onClick={() => navigateToExplorer({ city: c.city })}>{c.city}</td>
+                    <td className="px-4 py-3 text-center text-xs font-bold text-muted-foreground">{i + 1}</td>
+                  <td className="px-4 py-2 font-medium cursor-pointer hover:text-primary transition-colors hover:underline" onClick={() => navigateToExplorer({ city: c.city })}>{c.city}</td>
                     <td className="px-4 py-2 text-right cursor-pointer hover:text-primary transition-colors hover:bg-primary/5" onClick={() => navigateToExplorer({ city: c.city })}>{c.cases.toLocaleString()}</td>
                     <td className="px-4 py-2 text-right font-medium cursor-pointer hover:text-primary transition-colors hover:bg-primary/5" onClick={() => navigateToExplorer({ city: c.city })}>{fmtCur(c.pos)}</td>
                     {stats.sortedBands.map((band, idx) => {
@@ -404,6 +422,7 @@ export default function ExecDashboard() {
               </tbody>
               <tfoot className="bg-primary/10 font-bold sticky bottom-0 z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-primary/20 transition-colors" onClick={() => window.location.href = globalBucket === 'ALL' ? '/explorer' : `/explorer?bucket=${globalBucket}`}>
                 <tr>
+                  <td className="px-4 py-2 text-center text-xs text-muted-foreground"></td>
                   <td className="px-4 py-2 text-primary uppercase">Grand Total</td>
                   <td className="px-4 py-2 text-right hover:text-primary transition-colors hover:bg-primary/5">{stats.cityData.reduce((a, c) => a + c.cases, 0).toLocaleString()}</td>
                   <td className="px-4 py-2 text-right hover:text-primary transition-colors hover:bg-primary/5">{fmtCur(stats.cityData.reduce((a, c) => a + c.pos, 0))}</td>
@@ -419,7 +438,7 @@ export default function ExecDashboard() {
           <div className="p-3 border-t border-border bg-muted/10 flex justify-between items-center">
              <span className="text-xs text-muted-foreground">{stats.cityData.length > 50 ? `Showing top 50 of ${stats.cityData.length} cities` : `Showing all ${stats.cityData.length} cities`}</span>
              <button onClick={() => {
-                 const csv = ['City,Cases,Total POS,' + stats.sortedBands.join(','), ...stats.cityData.map(c => `"${c.city}",${c.cases},${c.pos},${stats.sortedBands.map(b => c.bands[b] ? c.bands[b].cases : 0).join(',')}`)].join('\n');
+                 const csv = ['City,Cases,Total POS,' + stats.sortedBands.join(','), ...stats.cityData.map((c, i) => `"${c.city}",${c.cases},${c.pos},${stats.sortedBands.map((b, i) => c.bands[b] ? c.bands[b].cases : 0).join(',')}`)].join('\n');
                  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'City_Bandwise.csv'; a.click();
              }} className="inline-flex items-center gap-1.5 text-xs font-bold bg-card border border-border px-3 py-1.5 rounded hover:bg-muted text-primary transition-colors">
                <Download className="h-3.5 w-3.5" /> Export Full Data
@@ -443,9 +462,10 @@ export default function ExecDashboard() {
           <table className="w-full text-sm text-left whitespace-nowrap">
             <thead className="text-xs uppercase sticky top-0 z-20 shadow-md">
               <tr className="bg-muted text-muted-foreground">
-                <th className="px-4 py-3 font-semibold border-b border-border bg-muted">City</th>
-                <th className="px-4 py-3 font-semibold text-right border-b border-border border-r bg-muted">Total City Cases</th>
-                {stats.bucketData.map(b => (
+                <th className="px-4 py-3 font-semibold text-center w-12 bg-muted/90 text-muted-foreground uppercase text-[10px]">S.No.</th>
+                  <th className="px-4 py-3 font-semibold border-b border-border bg-muted">City<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                <th className="px-4 py-3 font-semibold text-right border-b border-border border-r bg-muted">Total City Cases<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                {stats.bucketData.map((b, i) => (
                   <th key={b.bucket} colSpan={3} className="px-4 py-2 font-semibold text-center border-b border-border border-r bg-muted/80">
                     Bucket {b.bucket}
                   </th>
@@ -454,21 +474,22 @@ export default function ExecDashboard() {
               <tr className="bg-card text-muted-foreground text-[10px]">
                 <th className="px-4 py-2 border-b border-border bg-card"></th>
                 <th className="px-4 py-2 border-b border-border border-r bg-card"></th>
-                {stats.bucketData.map(b => (
+                {stats.bucketData.map((b, i) => (
                   <Fragment key={b.bucket}>
-                    <th className="px-2 py-2 font-semibold text-center border-b border-border bg-card text-success">Team<br/>Paid</th>
-                    <th className="px-2 py-2 font-semibold text-center border-b border-border bg-card text-info">POS Paid<br/>Only</th>
-                    <th className="px-2 py-2 font-semibold text-center border-b border-border border-r bg-card text-muted-foreground">Unpaid</th>
+                    <th className="px-2 py-2 font-semibold text-center border-b border-border bg-card text-success">Team<br/>Paid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                    <th className="px-2 py-2 font-semibold text-center border-b border-border bg-card text-info">POS Paid<br/>Only<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                    <th className="px-2 py-2 font-semibold text-center border-b border-border border-r bg-card text-muted-foreground">Unpaid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
                   </Fragment>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {stats.cityData.map(c => (
+              {stats.cityData.map((c, i) => (
                 <tr key={c.city} className="hover:bg-muted/30">
+                  <td className="px-4 py-3 text-center text-xs font-bold text-muted-foreground">{i + 1}</td>
                   <td className="px-4 py-2 font-medium cursor-pointer hover:text-primary transition-colors hover:underline" onClick={() => navigateToExplorer({ city: c.city })}>{c.city}</td>
                   <td className="px-4 py-2 text-right border-r border-border font-semibold">{c.cases.toLocaleString()}</td>
-                  {stats.bucketData.map(b => {
+                  {stats.bucketData.map((b, i) => {
                     const bData = c.buckets[b.bucket] || { teamPaid: 0, posPaidOnly: 0, unpaid: 0 };
                     return (
                       <Fragment key={b.bucket}>
@@ -483,9 +504,10 @@ export default function ExecDashboard() {
             </tbody>
               <tfoot className="bg-primary/10 font-bold sticky bottom-0 z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-primary/20 transition-colors" onClick={() => window.location.href = globalBucket === 'ALL' ? '/explorer' : `/explorer?bucket=${globalBucket}`}>
                 <tr>
+                  <td className="px-4 py-2 text-center text-xs text-muted-foreground"></td>
                   <td className="px-4 py-2 text-primary uppercase">Grand Total</td>
                   <td className="px-4 py-2 text-right">{stats.cityData.reduce((a, c) => a + c.cases, 0).toLocaleString()}</td>
-                  {stats.bucketData.map(b => (
+                  {stats.bucketData.map((b, i) => (
                       <Fragment key={'ft2'+b.bucket}>
                           <td className="px-2 py-2 text-center text-success font-bold bg-success/5">{stats.cityData.reduce((a, c) => a + (c.buckets[b.bucket]?.teamPaid || 0), 0).toLocaleString()}</td>
                           <td className="px-2 py-2 text-center font-bold bg-info/5 text-info">{stats.cityData.reduce((a, c) => a + (c.buckets[b.bucket]?.posPaidOnly || 0), 0).toLocaleString()}</td>
@@ -498,8 +520,8 @@ export default function ExecDashboard() {
         </div>
         <div className="p-3 border-t border-border bg-muted/10 text-right">
              <button onClick={() => {
-                 let headerRow = 'City,Total Cases,' + stats.bucketData.map(b => `Bkt ${b.bucket} Team Paid,Bkt ${b.bucket} POS Paid Only,Bkt ${b.bucket} Unpaid`).join(',');
-                 const csv = [headerRow, ...stats.cityData.map(c => `"${c.city}",${c.cases},${stats.bucketData.map(b => (c.buckets[b.bucket]?.teamPaid || 0) + ',' + (c.buckets[b.bucket]?.posPaidOnly || 0) + ',' + (c.buckets[b.bucket]?.unpaid || 0)).join(',')}`)].join('\n');
+                 const headerRow = 'City,Total Cases,' + stats.bucketData.map((b, i) => `Bkt ${b.bucket} Team Paid,Bkt ${b.bucket} POS Paid Only,Bkt ${b.bucket} Unpaid`).join(',');
+                 const csv = [headerRow, ...stats.cityData.map((c, i) => `"${c.city}",${c.cases},${stats.bucketData.map((b, i) => (c.buckets[b.bucket]?.teamPaid || 0) + ',' + (c.buckets[b.bucket]?.posPaidOnly || 0) + ',' + (c.buckets[b.bucket]?.unpaid || 0)).join(',')}`)].join('\n');
                  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'City_Bucket_Drilldown.csv'; a.click();
              }} className="inline-flex items-center gap-1.5 text-xs font-bold bg-card border border-border px-3 py-1.5 rounded hover:bg-muted text-primary transition-colors">
                <Download className="h-3.5 w-3.5" /> Export Data

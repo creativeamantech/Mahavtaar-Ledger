@@ -5,6 +5,30 @@ export interface LoanRecord {
   [key: string]: any;
 }
 
+export interface CustomerFeedback {
+  id: string;
+  agreementid: string;
+  contactNumber: string;
+  availability: string;
+  status: string;
+  paidSubStatus?: string;
+  amountPaid?: number;
+  paymentMode?: string;
+  approvedAmount?: number;
+  nonContactableSubStatus?: string;
+  ptpDate?: string;
+  cbDate?: string;
+  detailedFeedback?: string;
+  detailedFeedbackThirdParty?: string;
+  detailedFeedbackAgentDispute?: string;
+  overallDetailedFeedback?: string;
+  concernNumber?: string;
+  relationName?: string;
+  agentId: string;
+  agentName: string;
+  createdAt: string;
+}
+
 export interface UploadSession {
   id: string;
   type: string;
@@ -42,21 +66,35 @@ export interface StoredUser {
   permissions: { views: string[] };
 }
 
+export interface AttendanceLog {
+  id: string;
+  userId: string;
+  userName: string;
+  date: string;
+  loginTime: string;
+  logoutTime?: string;
+  breakDuration?: number;
+}
+
 class MahavtaarDB extends Dexie {
   loan_records!: Table<LoanRecord, string>;
   upload_sessions!: Table<UploadSession, string>;
   audit_log!: Table<AuditEntry, string>;
   state_targets!: Table<StateTarget, string>;
+  customer_feedbacks!: Table<CustomerFeedback, string>;
   users!: Table<StoredUser, string>;
+  attendance_logs!: Table<AttendanceLog, string>;
 
   constructor() {
     super('mahavtaar_tracker_db');
-    this.version(1).stores({
+    this.version(3).stores({
+      customer_feedbacks: 'id, agreementid, createdAt',
       loan_records: 'agreementid, city, state, bom_bkt, executive_name',
       upload_sessions: 'id, createdAt, type',
       audit_log: 'id, agreementid, createdAt',
       state_targets: 'key',
       users: 'id, email',
+      attendance_logs: 'id, userId, date'
     });
   }
 }

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import {
+  useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { AppLayout } from '../components/layout/AppLayout';
@@ -22,17 +23,17 @@ import { ResponsiveFilter } from '../components/ui/ResponsiveFilter';
 
 
 const STANDARD_KEYS = [
-  'agreementid', 'agreement_no',
-  'customer_name', 'CUSTOMERNAME', 'Customer Name', 'CUSTOMER_NAME', 'customername',
-  'bom_bkt',
-  'state', 'State',
-  'city', 'City',
-  'executive_name', 'Executive Name',
-  'principal_outstanding',
-  'emi_amt',
-  'ecs',
-  'provisional_dac', 'dac',
-  'mainPaid', 'emiCount'
+  "agreementid", "agreement_no", "AGREEMENTID", "AGREEMENTNO", "AGREEMENT_NO", "Agreement No", "loan_id", "Loan ID",
+  "customer_name", "CUSTOMERNAME", "Customer Name", "CUSTOMER_NAME", "customername",
+  "bom_bkt",
+  "state", "State",
+  "city", "City",
+  "executive_name", "Executive Name", "Final EX. Name", "Final EX. name", "Final EX.NAME", "EX. Name", "EX. name", "EX.NAME", "Final Executive Name", "final_executive_name", "Final Executive", "final_executive", "Executive", "executive",
+  "principal_outstanding",
+  "emi_amt",
+  "ecs", "ECS",
+  "provisional_dac", "dac", "DAC",
+  "mainPaid", "emiCount"
 ];
 
 export default function DataExplorer() {
@@ -45,6 +46,7 @@ export default function DataExplorer() {
   const [selectedCity, setSelectedCity] = useState<string>(searchParams.get('city') || 'All');
   const [selectedBucket, setSelectedBucket] = useState<string>(searchParams.get('bucket') || 'All');
   const [selectedExecutive, setSelectedExecutive] = useState<string>(searchParams.get('executive') || 'All');
+  const [selectedAllocation, setSelectedAllocation] = useState<string>(searchParams.get('allocated') || 'All');
   const [selectedPaidStatus, setSelectedPaidStatus] = useState<string>(searchParams.get('paid') || 'All'); // All, Paid, Unpaid
   const [searchQuery, setSearchQuery] = useState<string>(searchParams.get('q') || '');
   const [exactCustomerFingerprint, setExactCustomerFingerprint] = useState<string | null>(null);
@@ -58,6 +60,11 @@ export default function DataExplorer() {
   
   
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+  const navigate = useNavigate();
+  const handleRowClick = (r: any) => {
+    sessionStorage.setItem('currentCaseList', JSON.stringify(filteredRecords.map(rec => rec.agreementid)));
+    navigate(`/customer/${r.agreementid}?${searchParams.toString()}`);
+  };
   const [multiCaseModal, setMultiCaseModal] = useState<{name: string, records: any[]} | null>(null);
 
   const [page, setPage] = useState(1);
@@ -176,6 +183,11 @@ export default function DataExplorer() {
       if (selectedBucket !== 'All' && String(r.bom_bkt || 'UNKNOWN').trim() !== selectedBucket) return false;
       if (selectedExecutive !== 'All' && String(r.executive_name || r['Executive Name'] || 'UNKNOWN').trim() !== selectedExecutive) return false;
       
+      const execName = String(r.executive_name || r['Executive Name'] || r.EXECUTIVE_NAME || '').trim();
+      const isAllocated = execName.length > 0;
+      if (selectedAllocation === 'Allocated' && !isAllocated) return false;
+      if (selectedAllocation === 'Unallocated' && isAllocated) return false;
+      
       const c = calculateRow(r);
       const isPaid = c.mainPaid === 1;
       
@@ -204,7 +216,7 @@ export default function DataExplorer() {
       
       return true;
     });
-  }, [baseRecords, selectedState, selectedCity, selectedBucket, selectedExecutive, selectedPaidStatus, searchQuery, minPos, maxPos, activeCustomFilters, customFilterValues, exactCustomerFingerprint, addressKey, contactKey]);
+  }, [baseRecords, selectedState, selectedCity, selectedBucket, selectedExecutive, selectedAllocation, selectedPaidStatus, searchQuery, minPos, maxPos, activeCustomFilters, customFilterValues, exactCustomerFingerprint, addressKey, contactKey]);
 
   const paginatedRecords = useMemo(() => {
     return filteredRecords.slice((page - 1) * itemsPerPage, page * itemsPerPage);
@@ -212,7 +224,8 @@ export default function DataExplorer() {
 
     const handleExport = () => {
     if (filteredRecords.length === 0) return;
-    const headers = ['Agreement Number', 'Customer Name', 'State', 'City', 'Executive', 'Bucket', 'POS', 'EMI', 'DAC', 'ECS', 'Paid Status'];
+    const extraHeaders = allExtraKeys.filter(col => (visibleExtraColumns || []).includes(col));
+    const headers = ['Agreement Number', 'Customer Name', 'State', 'City', 'Executive', 'Bucket', 'POS', 'EMI', 'DAC', 'ECS', 'Paid Status', ...extraHeaders];
     const csv = [
       headers.join(','),
       ...filteredRecords.map((r: any) => {
@@ -228,7 +241,8 @@ export default function DataExplorer() {
           Number(r.emi_amt) || 0,
           Number(r.dac ?? r.DAC) || 0,
           Number(r.ecs ?? r.ECS) || 0,
-          isPaid ? 'Paid' : 'Unpaid'
+          isPaid ? 'Paid' : 'Unpaid',
+          ...extraHeaders.map(col => `"${String(r[col] || '').replace(/"/g, '""')}"`)
         ].join(',');
       })
     ].join('\n');
@@ -273,7 +287,7 @@ export default function DataExplorer() {
       {/* Primary Bucket Filter Tabs */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground mr-2">Primary Bucket:</span>
-        {availableBuckets.map(b => (
+        {availableBuckets.map((b, i) => (
           <button
             key={b}
             onClick={() => setSelectedBucket(b)}
@@ -309,6 +323,14 @@ export default function DataExplorer() {
             <span className="text-[10px] font-bold uppercase text-muted-foreground">City</span>
             <select value={selectedCity} onChange={e => setSelectedCity(e.target.value)} className="h-8 rounded bg-muted/50 border border-border px-2 text-xs font-medium outline-none focus:border-primary">
               {availableCities.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Allocation</span>
+            <select value={selectedAllocation} onChange={e => setSelectedAllocation(e.target.value)} className="h-8 rounded bg-muted/50 border border-border px-2 text-xs font-medium outline-none focus:border-primary">
+              <option value="All">All</option>
+              <option value="Allocated">Allocated</option>
+              <option value="Unallocated">Unallocated</option>
             </select>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -433,7 +455,7 @@ export default function DataExplorer() {
               <span className="text-[10px] font-bold uppercase text-muted-foreground">Jump</span>
               <select onChange={(e) => { if(e.target.value) jumpToColumn(e.target.value); e.target.value = ""; }} className="h-8 w-32 rounded bg-muted/50 border border-border px-2 text-xs font-medium outline-none focus:border-primary">
                 <option value="">Select Col...</option>
-                {(visibleExtraColumns || []).map(c => <option key={c} value={c}>{c}</option>)}
+                {(allExtraKeys.filter(c => (visibleExtraColumns || []).includes(c))).map((c, i) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             
@@ -530,7 +552,7 @@ export default function DataExplorer() {
                 <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">DAC</th>
                 <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">Status</th>
 
-                {(visibleExtraColumns || []).map(col => (
+                {(allExtraKeys.filter(col => (visibleExtraColumns || []).includes(col))).map(col => (
                   <th key={col} id={`th-${col}`} className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{col}</th>
                 ))}
               </tr>
@@ -551,7 +573,7 @@ export default function DataExplorer() {
                   const isPaid = c.mainPaid === 1;
                   return (
                     <tr key={r.id || idx} className="border-b border-border hover:bg-muted/30 transition-colors">
-                      <td className="sticky left-0 z-10 bg-card border-r border-border px-2 py-1.5 text-primary font-bold cursor-pointer hover:underline" onClick={() => setSelectedRecord(r)}>{r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || '-'}</td>
+                      <td className="sticky left-0 z-10 bg-card border-r border-border px-2 py-1.5 text-primary font-bold cursor-pointer hover:underline" onClick={() => handleRowClick(r)}>{r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || '-'}</td>
                                             <td className="px-2 py-1.5 cursor-pointer group" onClick={() => {
                         const rawName = r.customer_name || r.CUSTOMERNAME || r['Customer Name'] || r.CUSTOMER_NAME || r.customername || '';
                         const name = String(rawName).trim().toUpperCase();
@@ -571,7 +593,7 @@ export default function DataExplorer() {
                             });
                             setMultiCaseModal({ name: name, records: matched });
                           } else {
-                            setSelectedRecord(r);
+                            handleRowClick(r);
                           }
                         }
                       }}>
@@ -612,7 +634,7 @@ export default function DataExplorer() {
                           : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-muted text-muted-foreground uppercase tracking-wider">Unpaid</span>
                         }
                       </td>
-                      {(visibleExtraColumns || []).map(col => (
+                      {(allExtraKeys.filter(col => (visibleExtraColumns || []).includes(col))).map(col => (
                         <td key={col} className="px-2 py-1.5 text-muted-foreground font-sans text-xs">
                           {r[col] !== undefined && r[col] !== null ? String(r[col]) : '-'}
                         </td>
@@ -639,7 +661,7 @@ export default function DataExplorer() {
         )}
       </div>
 
-      <Sheet open={!!selectedRecord} onOpenChange={(o) => !o && setSelectedRecord(null)}>
+      <Sheet open={false} onOpenChange={(o) => !o && setSelectedRecord(null)}>
         <SheetContent className="w-full sm:max-w-md bg-card p-0 border-l border-border flex flex-col h-full">
           <SheetHeader className="p-6 border-b border-border bg-muted/10">
             <div className="flex justify-between items-start">
@@ -656,7 +678,7 @@ export default function DataExplorer() {
           </SheetHeader>
           <ScrollArea className="flex-1 p-6">
             <div className="grid gap-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1 bg-muted/30 p-3 rounded-lg border border-border/50">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">State</p>
                   <p className="font-sans text-sm font-semibold">{selectedRecord?.state || selectedRecord?.State || '-'}</p>
@@ -776,7 +798,7 @@ export default function DataExplorer() {
                     const isPaid = c.mainPaid === 1;
                     return (
                       <tr key={idx} className="border-b border-border hover:bg-muted/50 transition-colors">
-                        <td className="px-4 py-3 text-primary font-bold cursor-pointer hover:underline" onClick={() => { setMultiCaseModal(null); setSelectedRecord(r); }}>
+                        <td className="px-4 py-3 text-primary font-bold cursor-pointer hover:underline" onClick={() => { setMultiCaseModal(null); handleRowClick(r); }}>
                           {r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || '-'}
                         </td>
                         <td className="px-4 py-3 font-bold">{r.bom_bkt}</td>

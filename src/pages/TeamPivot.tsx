@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
-import { AppLayout } from '../components/layout/AppLayout';
+import {
+  AppLayout } from '../components/layout/AppLayout';
 import { useData } from '../contexts/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { buildTeamPivot } from '../lib/pivots';
 import { fmtCur, fmtPct, pctColor } from '../lib/formatters';
 import { exportTeamPivot } from '../lib/exporter';
-import { Download } from 'lucide-react';
+import { Download , ArrowUpDown, Filter as FilterIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function TeamPivot() {
@@ -29,6 +30,15 @@ export default function TeamPivot() {
 
   const teamData = useMemo(() => buildTeamPivot(filtered, targets), [filtered, targets]);
 
+  const globalExecCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    records.forEach(r => {
+      const exec = String(r.executive_name || r['Executive Name'] || r.EXECUTIVE_NAME || 'UNKNOWN').trim();
+      counts[exec] = (counts[exec] || 0) + 1;
+    });
+    return counts;
+  }, [records]);
+
   // Group by bucket
   const grouped = useMemo(() => {
     const groups: Record<number, any[]> = {};
@@ -36,8 +46,13 @@ export default function TeamPivot() {
       if (!groups[t.bkt]) groups[t.bkt] = [];
       groups[t.bkt].push(t);
     });
-    return Object.entries(groups).sort(([a], [b]) => Number(a) - Number(b));
-  }, [teamData]);
+    return Object.entries(groups)
+      .map(([bkt, items]) => [
+        bkt, 
+        items.sort((a, b) => (globalExecCounts[b.exec] || 0) - (globalExecCounts[a.exec] || 0))
+      ] as [string, any[]])
+      .sort(([a], [b]) => Number(a) - Number(b));
+  }, [teamData, globalExecCounts]);
 
   const grandTotal = useMemo(() => ({
     collection: teamData.reduce((s, t) => s + t.collection, 0),
@@ -48,6 +63,7 @@ export default function TeamPivot() {
     posPaidOnlyCount: teamData.reduce((s, t) => s + t.posPaidOnlyCount, 0),
     posPaidOnlyPOS: teamData.reduce((s, t) => s + t.posPaidOnlyPOS, 0),
     target: teamData.reduce((s, t) => s + t.target, 0),
+    dailyRequiredPOS: teamData.reduce((s, t) => s + (t.dailyRequiredPOS || 0), 0),
   }), [teamData]);
 
   const gPct = grandTotal.totalPOS ? grandTotal.paidPOS / grandTotal.totalPOS : 0;
@@ -88,16 +104,19 @@ export default function TeamPivot() {
         <table className="w-full font-sans text-xs min-w-[1000px]">
           <thead className="sticky top-0 z-30 bg-card shadow-sm border-b-2 border-border">
             <tr className="border-b-2 border-border">
-              <th className="px-3 py-2.5 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Bucket / Executive</th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Collection</th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total Count</th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Paid Count</th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">POS Paid Only Count</th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total POS</th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Paid POS</th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Needed POS</th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">POS Paid Only POS</th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total %</th>
+              <th className="px-3 py-2 font-semibold text-center w-10 text-muted-foreground uppercase text-[10px]">S.No.</th>
+                  <th className="px-3 py-2.5 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Bucket / Executive<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Collection<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total Count<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Paid Count<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">POS Paid Only Count<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Paid POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Needed POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Target Date<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Daily Required POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">POS Paid Only POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total %<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
             </tr>
           </thead>
           <tbody>
@@ -111,6 +130,7 @@ export default function TeamPivot() {
                 posPaidOnlyCount: items.reduce((s: number, i: any) => s + i.posPaidOnlyCount, 0),
                 posPaidOnlyPOS: items.reduce((s: number, i: any) => s + i.posPaidOnlyPOS, 0),
                 target: items.reduce((s: number, i: any) => s + i.target, 0),
+                dailyRequiredPOS: items.reduce((s: number, i: any) => s + (i.dailyRequiredPOS || 0), 0),
               };
               const subPct = sub.totalPOS ? sub.paidPOS / sub.totalPOS : 0;
               return (
@@ -118,8 +138,9 @@ export default function TeamPivot() {
                   <tr className="bg-primary/10 border-b border-border">
                     <td colSpan={9} className="px-3 py-2.5 font-sans text-[11px] font-bold text-primary uppercase tracking-[0.1em]">BUCKET {bkt}</td>
                   </tr>
-                  {items.map((item: any) => (
+                  {items.map((item: any, i: number) => (
                     <tr key={item.exec} className="border-b border-border transition-colors hover:bg-muted">
+                      <td className="px-3 py-2 text-center font-bold text-muted-foreground text-xs">{i + 1}</td>
                       <td className="px-3 py-2 pl-6">{item.exec}</td>
                       <td className="px-3 py-2 text-right text-primary font-bold">{fmtCur(item.collection)}</td>
                       <td className="px-3 py-2 text-right">{item.count}</td>
@@ -128,11 +149,14 @@ export default function TeamPivot() {
                       <td className="px-3 py-2 text-right font-medium">{fmtCur(item.totalPOS)}</td>
                       <td className="px-3 py-2 text-right font-medium">{fmtCur(item.paidPOS)}</td>
                       <td className="px-3 py-2 text-right">{item.target <= 0 ? <span className="text-xs font-bold text-success uppercase">Achieved</span> : <span className="text-destructive font-bold">{fmtCur(item.target)}</span>}</td>
+                      <td className="px-3 py-2 text-right text-xs text-muted-foreground">{item.targetDate || "-"}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-amber-600">{fmtCur(item.dailyRequiredPOS || 0)}</td>
                       <td className="px-3 py-2 text-right text-info">{fmtCur(item.posPaidOnlyPOS)}</td>
                       <td className={`px-3 py-2 text-right font-bold ${pctColor(item.pct)}`}>{fmtPct(item.pct)}</td>
                     </tr>
                   ))}
                   <tr className="border-b border-[rgba(255,255,255,0.08)] bg-white/5 font-medium">
+                    <td className="px-3 py-2 text-center"></td>
                     <td className="px-3 py-2.5 pl-6 text-muted-foreground uppercase text-xs tracking-wider">Bucket {bkt} Total</td>
                     <td className="px-3 py-2 text-right text-primary">{fmtCur(sub.collection)}</td>
                     <td className="px-3 py-2 text-right">{sub.count}</td>
@@ -141,6 +165,8 @@ export default function TeamPivot() {
                     <td className="px-3 py-2 text-right">{fmtCur(sub.totalPOS)}</td>
                     <td className="px-3 py-2 text-right">{fmtCur(sub.paidPOS)}</td>
                     <td className="px-3 py-2 text-right">{sub.target <= 0 ? <span className="text-xs font-bold text-success uppercase">Achieved</span> : <span className="text-destructive font-bold">{fmtCur(sub.target)}</span>}</td>
+                    <td className="px-3 py-2 text-right text-xs text-muted-foreground">-</td>
+                    <td className="px-3 py-2 text-right font-semibold text-amber-600">{fmtCur(sub.dailyRequiredPOS || 0)}</td>
                     <td className="px-3 py-2 text-right text-info">{fmtCur(sub.posPaidOnlyPOS)}</td>
                     <td className={`px-3 py-2 text-right ${pctColor(subPct)}`}>{fmtPct(subPct)}</td>
                   </tr>
@@ -152,6 +178,7 @@ export default function TeamPivot() {
 
           <tfoot className="bg-card font-bold sticky bottom-0 z-20 shadow-[0_-4px_15px_rgba(0,0,0,0.08)] border-t-2 border-border transition-colors">
             <tr>
+              <td className="px-3 py-2 text-center"></td>
               <td className="px-3 py-2.5 font-bold uppercase text-primary cursor-pointer hover:underline" onClick={() => navigateToExplorer({})}>Grand Total</td>
               <td className="px-3 py-2.5 text-right font-data font-bold text-success cursor-pointer hover:bg-primary/10 transition-colors" onClick={() => navigateToExplorer({})}>{fmtCur(grandTotal.collection)}</td>
               <td className="px-3 py-2.5 text-right font-data font-bold cursor-pointer hover:bg-primary/10 transition-colors" onClick={() => navigateToExplorer({})}>{grandTotal.count}</td>
@@ -160,6 +187,8 @@ export default function TeamPivot() {
               <td className="px-3 py-2.5 text-right font-data font-bold cursor-pointer hover:bg-primary/10 transition-colors" onClick={() => navigateToExplorer({})}>{fmtCur(grandTotal.totalPOS)}</td>
               <td className="px-3 py-2.5 text-right font-data font-bold text-success cursor-pointer hover:bg-success/10 transition-colors" onClick={() => navigateToExplorer({ paid: 'Paid' })}>{fmtCur(grandTotal.paidPOS)}</td>
               <td className="px-3 py-2.5 text-right font-data font-bold text-warning">{fmtCur(grandTotal.target)}</td>
+              <td className="px-3 py-2.5 text-right font-data font-bold text-muted-foreground">-</td>
+              <td className="px-3 py-2.5 text-right font-data font-bold text-amber-600">{fmtCur(grandTotal.dailyRequiredPOS || 0)}</td>
               <td className="px-3 py-2.5 text-right font-data font-bold text-muted-foreground">{fmtCur(grandTotal.posPaidOnlyPOS)}</td>
               <td className={"px-3 py-2.5 text-right font-data font-bold " + pctColor(grandTotal.totalPOS ? grandTotal.paidPOS / grandTotal.totalPOS : 0)}>
                 {fmtPct(grandTotal.totalPOS ? grandTotal.paidPOS / grandTotal.totalPOS : 0)}
