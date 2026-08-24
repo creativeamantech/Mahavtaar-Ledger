@@ -22,6 +22,7 @@ interface AttendanceRecord {
   loginTime: string;
   logoutTime?: string;
   breakDuration?: number;
+  currentBreakStart?: string;
 }
 
 export default function Attendance() {
@@ -61,7 +62,12 @@ export default function Attendance() {
   const calculateProductiveHours = (record: AttendanceRecord) => {
     if (!record.loginTime || !record.logoutTime) return { text: "N/A", deviation: false, minutes: 0 };
     const totalMinutes = differenceInMinutes(parseISO(record.logoutTime), parseISO(record.loginTime));
-    const productiveMinutes = totalMinutes - (record.breakDuration || 0);
+    let breakMinutes = record.breakDuration || 0;
+    if (record.currentBreakStart) {
+        const start = parseISO(record.currentBreakStart);
+        breakMinutes += Math.round((new Date().getTime() - start.getTime()) / 60000);
+    }
+    const productiveMinutes = totalMinutes - breakMinutes;
     
     if (productiveMinutes < 0) return { text: "0h 0m", deviation: true, minutes: 0 };
 
@@ -82,10 +88,14 @@ export default function Attendance() {
     { key: 'logoutTime', label: 'Logout Time', render: (val: string) => val ? format(parseISO(val), "hh:mm a") : "N/A" },
     { key: 'totalHours', label: 'Total Hours', render: (_: any, row: AttendanceRecord) => calculateDuration(row.loginTime, row.logoutTime) },
     { 
-       key: 'breakHours', 
-       label: 'Break Hours', 
-       render: (_: any, row: AttendanceRecord) => {
-        const breakMinutes = row.breakDuration || 0;
+       key: 'breakHours',
+        label: 'Break Hours',
+        render: (_: any, row: AttendanceRecord) => {
+        let breakMinutes = row.breakDuration || 0;
+        if (row.currentBreakStart) {
+            const start = parseISO(row.currentBreakStart);
+            breakMinutes += Math.round((new Date().getTime() - start.getTime()) / 60000);
+        }
         const hours = Math.floor(breakMinutes / 60);
         const mins = Math.round(breakMinutes % 60);
         return `${hours}h ${mins}m`;
@@ -117,7 +127,7 @@ export default function Attendance() {
             'Login Time': format(parseISO(r.loginTime), "HH:mm"),
             'Logout Time': r.logoutTime ? format(parseISO(r.logoutTime), "HH:mm") : "N/A",
             'Total Hours': calculateDuration(r.loginTime, r.logoutTime),
-            'Break (mins)': r.breakDuration || 0,
+            'Break (mins)': (r.breakDuration || 0) + (r.currentBreakStart ? Math.round((new Date().getTime() - parseISO(r.currentBreakStart).getTime()) / 60000) : 0),
             'Productive Hours': productiveText,
             'Deviation': deviation ? 'Yes' : 'No'
         }

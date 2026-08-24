@@ -1,123 +1,102 @@
 const fs = require('fs');
-const file = 'src/pages/CityPivot.tsx';
-let content = fs.readFileSync(file, 'utf8');
 
-content = content.replace(
-  /<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total Count<\/th>/,
-  '<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs hidden sm:table-cell">Total Count</th>'
-);
-content = content.replace(
-  /<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Paid Count<\/th>/,
-  '<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs hidden sm:table-cell">Paid Count</th>'
-);
-content = content.replace(
-  /<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">POS Paid Only Count<\/th>/,
-  '<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs hidden md:table-cell">POS Paid Only Count</th>'
-);
-content = content.replace(
-  /<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total POS<\/th>/,
-  '<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs hidden lg:table-cell">Total POS</th>'
-);
-content = content.replace(
-  /<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Paid POS<\/th>/,
-  '<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs hidden md:table-cell">Paid POS</th>'
-);
-content = content.replace(
-  /<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Needed POS<\/th>/,
-  '<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs hidden sm:table-cell">Needed POS</th>'
-);
-content = content.replace(
-  /<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">POS Paid Only POS<\/th>/,
-  '<th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs hidden md:table-cell">POS Paid Only POS</th>'
-);
+let content = fs.readFileSync('src/pages/CityPivot.tsx', 'utf8');
 
+// Replace standard grand total div with Bento Cards
+const grandTotalBento = `
+      <div className="mb-8 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
+        {[
+          { label: 'Total POS', value: fmtCur(grandTotal.totalPOS), color: 'text-foreground' },
+          { label: 'Collection', value: fmtCur(grandTotal.collection), color: 'text-primary' },
+          { label: 'Needed POS', value: fmtCur(grandTotal.target), color: 'text-destructive' },
+          { label: 'Total %', value: fmtPct(gPct), color: pctColor(gPct) },
+          { label: 'Total Count', value: grandTotal.count, color: 'text-muted-foreground' },
+          { label: 'Paid Count', value: grandTotal.paid, color: 'text-success' },
+          { label: 'Paid POS', value: fmtCur(grandTotal.paidPOS), color: 'text-success' },
+          { label: 'Daily Req.', value: fmtCur(grandTotal.dailyRequiredPOS), color: 'text-amber-500' },
+        ].map((metric, i) => (
+          <div key={i} className="bg-white/5 dark:bg-black/20 backdrop-blur-md border border-white/10 dark:border-white/5 rounded-2xl p-4 shadow-xl flex flex-col justify-center items-center hover:bg-white/10 transition-colors">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">{metric.label}</div>
+            <div className={\`font-mono text-lg font-black tracking-tighter \${metric.color}\`}>{metric.value}</div>
+          </div>
+        ))}
+      </div>
+`;
+
+// Replace the old top bar and grand total
 content = content.replace(
-  /<td className="px-3 py-2 text-right">\{sub.count\}<\/td>/,
-  '<td className="px-3 py-2 text-right hidden sm:table-cell">{sub.count}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-2 text-right">\{sub.paid\}<\/td>/,
-  '<td className="px-3 py-2 text-right hidden sm:table-cell">{sub.paid}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-2 text-right text-muted-foreground">\{sub.posPaidOnlyCount\}<\/td>/,
-  '<td className="px-3 py-2 text-right text-muted-foreground hidden md:table-cell">{sub.posPaidOnlyCount}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-2 text-right">\{fmtCur\(sub.totalPOS\)\}<\/td>/,
-  '<td className="px-3 py-2 text-right hidden lg:table-cell">{fmtCur(sub.totalPOS)}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-2 text-right">\{fmtCur\(sub.paidPOS\)\}<\/td>/,
-  '<td className="px-3 py-2 text-right hidden md:table-cell">{fmtCur(sub.paidPOS)}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-2 text-right text-muted-foreground">\{fmtCur\(sub.neededPOS\)\}<\/td>/,
-  '<td className="px-3 py-2 text-right text-muted-foreground hidden sm:table-cell">{fmtCur(sub.neededPOS)}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-2 text-right text-muted-foreground">\{fmtCur\(sub.posPaidOnlyPOS\)\}<\/td>/,
-  '<td className="px-3 py-2 text-right text-muted-foreground hidden md:table-cell">{fmtCur(sub.posPaidOnlyPOS)}</td>'
+  /<div className="mb-6 flex items-center justify-between">[\s\S]*?<h1[\s\S]*?<\/h1>[\s\S]*?<div className="flex gap-4">[\s\S]*?<\/div>[\s\S]*?<\/div>/,
+  (match) => {
+    return `<div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">City Performance</h1>
+          <p className="text-sm text-muted-foreground mt-1">Real-time analysis and milestone targets</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input 
+              type="text" 
+              placeholder="Search cities..." 
+              value={filterText}
+              onChange={e => setFilterText(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-white/5 dark:bg-black/20 backdrop-blur-md border border-white/10 dark:border-white/5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all w-64 shadow-inner"
+            />
+          </div>
+          <button onClick={() => exportBucketCityPivot(rawCityData)} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all">
+            <Download className="w-4 h-4" /> Export
+          </button>
+        </div>
+      </div>
+      ${grandTotalBento}`;
+  }
 );
 
-// Body rows
+// Now wrap the table in glass container
 content = content.replace(
-  /<td className="px-3 py-1.5 text-right">\{item.count\}<\/td>/,
-  '<td className="px-3 py-1.5 text-right hidden sm:table-cell">{item.count}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-1.5 text-right">\{item.paid\}<\/td>/,
-  '<td className="px-3 py-1.5 text-right hidden sm:table-cell">{item.paid}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-1.5 text-right text-muted-foreground">\{item.posPaidOnlyCount\}<\/td>/,
-  '<td className="px-3 py-1.5 text-right text-muted-foreground hidden md:table-cell">{item.posPaidOnlyCount}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-1.5 text-right">\{fmtCur\(item.totalPOS\)\}<\/td>/,
-  '<td className="px-3 py-1.5 text-right hidden lg:table-cell">{fmtCur(item.totalPOS)}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-1.5 text-right">\{fmtCur\(item.paidPOS\)\}<\/td>/,
-  '<td className="px-3 py-1.5 text-right hidden md:table-cell">{fmtCur(item.paidPOS)}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-1.5 text-right text-muted-foreground">\{fmtCur\(item.neededPOS\)\}<\/td>/,
-  '<td className="px-3 py-1.5 text-right text-muted-foreground hidden sm:table-cell">{fmtCur(item.neededPOS)}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-1.5 text-right text-muted-foreground">\{fmtCur\(item.posPaidOnlyPOS\)\}<\/td>/,
-  '<td className="px-3 py-1.5 text-right text-muted-foreground hidden md:table-cell">{fmtCur(item.posPaidOnlyPOS)}</td>'
+  /<div className="overflow-auto scrollbar-thin max-h-\[calc\(100vh-250px\)\] min-h-\[400px\] relative bg-card">/,
+  '<div className="overflow-auto scrollbar-thin max-h-[calc(100vh-250px)] min-h-[400px] relative bg-white/5 dark:bg-black/20 backdrop-blur-xl border border-white/10 dark:border-white/5 rounded-2xl shadow-2xl">'
 );
 
-// Grand total
+// Format table head
 content = content.replace(
-  /<td className="px-3 py-3 text-right">\{gt.count\}<\/td>/,
-  '<td className="px-3 py-3 text-right hidden sm:table-cell">{gt.count}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-3 text-right">\{gt.paid\}<\/td>/,
-  '<td className="px-3 py-3 text-right hidden sm:table-cell">{gt.paid}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-3 text-right text-muted-foreground">\{gt.posPaidOnlyCount\}<\/td>/,
-  '<td className="px-3 py-3 text-right text-muted-foreground hidden md:table-cell">{gt.posPaidOnlyCount}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-3 text-right">\{fmtCur\(gt.totalPOS\)\}<\/td>/,
-  '<td className="px-3 py-3 text-right hidden lg:table-cell">{fmtCur(gt.totalPOS)}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-3 text-right">\{fmtCur\(gt.paidPOS\)\}<\/td>/,
-  '<td className="px-3 py-3 text-right hidden md:table-cell">{fmtCur(gt.paidPOS)}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-3 text-right text-muted-foreground">\{fmtCur\(gt.neededPOS\)\}<\/td>/,
-  '<td className="px-3 py-3 text-right text-muted-foreground hidden sm:table-cell">{fmtCur(gt.neededPOS)}</td>'
-);
-content = content.replace(
-  /<td className="px-3 py-3 text-right text-muted-foreground">\{fmtCur\(gt.posPaidOnlyPOS\)\}<\/td>/,
-  '<td className="px-3 py-3 text-right text-muted-foreground hidden md:table-cell">{fmtCur(gt.posPaidOnlyPOS)}</td>'
+  /<thead className="sticky top-0 z-30 bg-card shadow-sm border-b-2 border-border">/,
+  '<thead className="sticky top-0 z-30 bg-white/80 dark:bg-black/80 backdrop-blur-2xl shadow-sm border-b border-white/10">'
 );
 
-fs.writeFileSync(file, content);
+// Update TR font inside map to use Mono for numbers
+content = content.replace(
+  /className="px-3 py-2 text-right text-primary font-bold/g,
+  'className="px-3 py-2 text-right text-primary font-mono font-bold tracking-tighter'
+);
+content = content.replace(
+  /className="px-3 py-2 text-right text-success/g,
+  'className="px-3 py-2 text-right font-mono font-medium text-success'
+);
+content = content.replace(
+  /className="px-3 py-2 text-right text-info/g,
+  'className="px-3 py-2 text-right font-mono font-medium text-info'
+);
+content = content.replace(
+  /className="px-3 py-2 text-right font-medium/g,
+  'className="px-3 py-2 text-right font-mono font-medium tracking-tight'
+);
+content = content.replace(
+  /className="text-destructive font-bold"/g,
+  'className="text-destructive font-mono font-bold tracking-tight"'
+);
+content = content.replace(
+  /className="px-3 py-2 text-right font-semibold text-amber-600"/g,
+  'className="px-3 py-2 text-right font-mono font-bold tracking-tight text-amber-600"'
+);
+content = content.replace(
+  /className={`px-3 py-2 text-right font-bold \${pctColor\(item.pct\)}`}/g,
+  'className={`px-3 py-2 text-right font-mono font-black tracking-tighter ${pctColor(item.pct)}`}'
+);
+content = content.replace(
+  /className="px-3 py-2 text-right cursor-pointer/g,
+  'className="px-3 py-2 text-right font-mono cursor-pointer'
+);
+
+
+fs.writeFileSync('src/pages/CityPivot.tsx', content, 'utf8');

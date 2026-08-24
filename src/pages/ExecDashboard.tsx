@@ -5,7 +5,7 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { useMediaQuery } from '../hooks/use-media-query';
 import { calculateRow } from '../lib/calculations';
 import { fmtCur } from '../lib/formatters';
-import { DollarSign, AlertCircle, Database, BarChart3, TrendingUp, Download, ArrowUpDown, Filter as FilterIcon } from 'lucide-react';
+import { DollarSign, AlertCircle, Database, BarChart3, TrendingUp, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ComposedChart, Line } from 'recharts';
 import { AgentLiveDashboard } from '../components/agent/AgentLiveDashboard';
 
@@ -326,12 +326,12 @@ export default function ExecDashboard() {
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase">
                 <tr>
                   <th className="px-4 py-3 font-semibold text-center w-12 bg-muted/90 text-muted-foreground uppercase text-[10px]">S.No.</th>
-                  <th className="px-4 py-2 font-semibold">Bucket<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                  <th className="px-4 py-2 font-semibold text-right">Cases<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                  <th className="px-4 py-2 font-semibold text-right hidden sm:table-cell">POS Amount<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                  <th className="px-4 py-2 font-semibold text-right text-success">Team Paid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                  <th className="px-4 py-2 font-semibold text-right text-info">POS Paid Only<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                  <th className="px-4 py-2 font-semibold text-right hidden sm:table-cell">Unpaid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-2 font-semibold">Bucket<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                  <th className="px-4 py-2 font-semibold text-right">Cases<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                  <th className="px-4 py-2 font-semibold text-right hidden sm:table-cell">POS Amount<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                  <th className="px-4 py-2 font-semibold text-right text-success">Team Paid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                  <th className="px-4 py-2 font-semibold text-right text-info">POS Paid Only<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                  <th className="px-4 py-2 font-semibold text-right hidden sm:table-cell">Unpaid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -382,10 +382,10 @@ export default function ExecDashboard() {
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 font-semibold text-center w-12 bg-muted/90 text-muted-foreground uppercase text-[10px]">S.No.</th>
-                  <th className="px-4 py-3 font-semibold bg-muted/90">City<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                  <th className="px-4 py-3 font-semibold text-right bg-muted/90">Cases<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                  <th className="px-4 py-3 font-semibold text-right bg-muted/90">Total POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                  <th className="px-4 py-3 font-semibold text-center bg-muted" colSpan={stats.sortedBands.length}>POS Bands (Cases)<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-3 font-semibold bg-muted/90">City<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                  <th className="px-4 py-3 font-semibold text-right bg-muted/90">Cases<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                  <th className="px-4 py-3 font-semibold text-right bg-muted/90">Total POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                  <th className="px-4 py-3 font-semibold text-center bg-muted" colSpan={stats.sortedBands.length}>POS Bands (Cases)<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
                 </tr>
                 <tr className="border-t border-border/50 text-[10px]">
                   <th colSpan={3} className="bg-muted/90"></th>
@@ -463,8 +463,8 @@ export default function ExecDashboard() {
             <thead className="text-xs uppercase sticky top-0 z-20 shadow-md">
               <tr className="bg-muted text-muted-foreground">
                 <th className="px-4 py-3 font-semibold text-center w-12 bg-muted/90 text-muted-foreground uppercase text-[10px]">S.No.</th>
-                  <th className="px-4 py-3 font-semibold border-b border-border bg-muted">City<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                <th className="px-4 py-3 font-semibold text-right border-b border-border border-r bg-muted">Total City Cases<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-3 font-semibold border-b border-border bg-muted">City<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                <th className="px-4 py-3 font-semibold text-right border-b border-border border-r bg-muted">Total City Cases<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
                 {stats.bucketData.map((b, i) => (
                   <th key={b.bucket} colSpan={3} className="px-4 py-2 font-semibold text-center border-b border-border border-r bg-muted/80">
                     Bucket {b.bucket}
@@ -476,9 +476,9 @@ export default function ExecDashboard() {
                 <th className="px-4 py-2 border-b border-border border-r bg-card"></th>
                 {stats.bucketData.map((b, i) => (
                   <Fragment key={b.bucket}>
-                    <th className="px-2 py-2 font-semibold text-center border-b border-border bg-card text-success">Team<br/>Paid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                    <th className="px-2 py-2 font-semibold text-center border-b border-border bg-card text-info">POS Paid<br/>Only<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-                    <th className="px-2 py-2 font-semibold text-center border-b border-border border-r bg-card text-muted-foreground">Unpaid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+                    <th className="px-2 py-2 font-semibold text-center border-b border-border bg-card text-success">Team<br/>Paid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                    <th className="px-2 py-2 font-semibold text-center border-b border-border bg-card text-info">POS Paid<br/>Only<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
+                    <th className="px-2 py-2 font-semibold text-center border-b border-border border-r bg-card text-muted-foreground">Unpaid<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"></span></th>
                   </Fragment>
                 ))}
               </tr>

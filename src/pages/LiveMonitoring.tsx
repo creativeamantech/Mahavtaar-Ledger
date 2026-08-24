@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { useData } from '../contexts/DataContext';
+import { useAuth } from '../contexts/AuthContext';
 import { db, CustomerFeedback, LoanRecord } from '../lib/db';
 import { format, isToday, parseISO, formatDistanceToNow, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,7 @@ const Rupee = ({className}: {className?: string}) => (
 
 export default function LiveMonitoring() {
   const { records } = useData();
+  const { users } = useAuth();
   const [feedbacks, setFeedbacks] = useState<CustomerFeedback[]>([]);
   const [dateFilter, setDateFilter] = useState<'today' | 'all'>('today');
   const [sheetData, setSheetData] = useState<{title: string, customers: LoanRecord[]}>({title: '', customers: []});
@@ -60,6 +62,12 @@ export default function LiveMonitoring() {
 
   const agentPerformance = useMemo(() => {
     const agentsMap: Record<string, any> = {};
+    
+    // Initialize map with all users who have the EXECUTIVE role
+    users.filter(u => u.role === 'EXECUTIVE').forEach(u => {
+        agentsMap[u.name] = { name: u.name, feedbackCount: 0, ptpCount: 0, collectedAmount: 0 };
+    });
+
     filteredFeedbacks.forEach(f => {
       if (!agentsMap[f.agentName]) {
         agentsMap[f.agentName] = { name: f.agentName, feedbackCount: 0, ptpCount: 0, collectedAmount: 0 };
@@ -69,7 +77,7 @@ export default function LiveMonitoring() {
       if (f.status === 'Paid') agentsMap[f.agentName].collectedAmount += (Number(f.amountPaid) || 0);
     });
     return Object.values(agentsMap).sort((a, b) => b.feedbackCount - a.feedbackCount);
-  }, [filteredFeedbacks]);
+  }, [filteredFeedbacks, users]);
 
   const feedbackStatusData = useMemo(() => {
     const counts = filteredFeedbacks.reduce((acc, f) => {

@@ -74,6 +74,7 @@ export interface AttendanceLog {
   loginTime: string;
   logoutTime?: string;
   breakDuration?: number;
+  currentBreakStart?: string;
 }
 
 class MahavtaarDB extends Dexie {

@@ -32,7 +32,7 @@ import {
   Layers,
   FileText,
   CheckSquare,
-  ArrowUpDown,
+  
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,7 +40,7 @@ import CaseInformationTable from '../components/CaseInformationTable';
 
 export default function Assignment() {
   const { records, bulkUpdateRecords, auditLog, globalBucket } = useData();
-  const { user } = useAuth();
+  const { user, users } = useAuth();
 
   // Filters & Toggles
   const [excludePaid, setExcludePaid] = useState(false);
@@ -59,6 +59,10 @@ export default function Assignment() {
 
   const existingExecutives = useMemo(() => {
     const execs = new Set<string>();
+    // First, add all actual user accounts that are executives
+    users.filter(u => u.role === 'EXECUTIVE').forEach(u => execs.add(u.name));
+    
+    // Then add any legacy executives that exist in the records
     records.forEach((r) => {
       const e = String(
         r.executive_name || r["Executive Name"] || r.EXECUTIVE_NAME || "",
@@ -66,7 +70,7 @@ export default function Assignment() {
       if (e) execs.add(e);
     });
     return Array.from(execs).sort();
-  }, [records]);
+  }, [records, users]);
 
   // Active records respecting Bucket and Paid filters
   const activeRecords = useMemo(() => {
@@ -538,8 +542,8 @@ export default function Assignment() {
                           <thead className="bg-muted/30 text-muted-foreground uppercase tracking-widest text-[10px] sticky top-0 border-b border-border">
                             <tr>
                               <th className="px-4 py-3 font-semibold text-center w-12 bg-muted/90 text-muted-foreground uppercase text-[10px]">S.No.</th>
-                  <th className="px-4 py-3 font-bold">Executive<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><Filter className="h-3 w-3 ml-1" /></span></th>
-                              <th className="px-4 py-3 font-bold">City<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><Filter className="h-3 w-3 ml-1" /></span></th>
+                  <th className="px-4 py-3 font-bold">Executive</th>
+                              <th className="px-4 py-3 font-bold">City</th>
                               <th className="px-4 py-3 font-bold text-center">
                                 Count
                               </th>

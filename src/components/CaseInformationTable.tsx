@@ -155,7 +155,7 @@ export default function CaseInformationTable({
                 
                 return (
                   <tr key={id} className={`hover:bg-muted/30 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}>
-                    <td className="px-4 py-3 text-center text-xs font-bold text-muted-foreground">{i + 1}</td>
+                    
                     <td className="px-4 py-3">
                       <input type="checkbox" checked={isSelected} onChange={() => handleToggleSelect(id)} className="rounded border-border" />
                     </td>
@@ -179,7 +179,7 @@ export default function CaseInformationTable({
               })}
               {filteredRecords.length > 100 && (
                 <tr>
-                  <td className="px-4 py-3 text-center text-xs font-bold text-muted-foreground">{i + 1}</td>
+                  
                     <td colSpan={8} className="px-4 py-4 text-center text-xs text-muted-foreground font-medium">
                     Showing 100 of {filteredRecords.length} records. Use filters to narrow down the results.
                   </td>
@@ -187,7 +187,7 @@ export default function CaseInformationTable({
               )}
               {filteredRecords.length === 0 && (
                 <tr>
-                  <td className="px-4 py-3 text-center text-xs font-bold text-muted-foreground">{i + 1}</td>
+                  
                     <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground font-medium">
                     No cases match the selected filters.
                   </td>

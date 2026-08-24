@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { AppLayout } from '../components/layout/AppLayout';
 import { calculateRow } from '../lib/calculations';
 import { fmtCur } from '../lib/formatters';
-import { Filter, Database, Search, Download, Columns, Plus, X } from 'lucide-react';
+import { Filter, Database, Search, Download, Columns, Plus, X, ArrowUp, ArrowDown, Save, CheckCircle2, ChevronRight, LayoutTemplate } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Checkbox } from '../components/ui/checkbox';
 import {
@@ -39,7 +39,7 @@ const STANDARD_KEYS = [
 export default function DataExplorer() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { records, schema, isLoading } = useData();
-  const { user, isExecutive } = useAuth();
+  const { user, isExecutive, users } = useAuth();
   
   // Filter States
   const [selectedState, setSelectedState] = useState<string>(searchParams.get('state') || 'All');
@@ -57,6 +57,19 @@ export default function DataExplorer() {
   const [customFilterSearch, setCustomFilterSearch] = useState('');
   const [columnFilterSearches, setColumnFilterSearches] = useState<Record<string, string>>({});
 
+  const [selectedCases, setSelectedCases] = useState<Set<string>>(new Set());
+  const [density, setDensity] = useState<'compact' | 'comfortable'>('compact');
+  const thPad = density === 'comfortable' ? 'py-4' : 'py-2';
+  const tdPad = density === 'comfortable' ? 'py-3' : 'py-1.5';
+
+  const [draggedCol, setDraggedCol] = useState<string | null>(null);
+  const [bulkAssignExec, setBulkAssignExec] = useState<string>('');
+  const [savedViews, setSavedViews] = useState<any[]>(() => {
+    const saved = localStorage.getItem('dataExplorerSavedViews');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+
   
   
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
@@ -68,8 +81,16 @@ export default function DataExplorer() {
   const [multiCaseModal, setMultiCaseModal] = useState<{name: string, records: any[]} | null>(null);
 
   const [page, setPage] = useState(1);
+  const [sortSearch, setSortSearch] = useState('');
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'}[]>([]);
+
+  
   const itemsPerPage = 50;
 
+    const allExecutives = useMemo(() => {
+    return Array.from(new Set(records.map((r: any) => String(r.executive_name || r['Executive Name'] || '').trim()).filter(Boolean))).sort();
+  }, [records]);
+  
   const allExtraKeys = useMemo(() => {
     return schema.filter(k => !STANDARD_KEYS.includes(k) && !k.startsWith('_'));
   }, [schema]);
@@ -147,7 +168,15 @@ export default function DataExplorer() {
     };
   }, [schema]);
 
-  const availableExecutives = useMemo(() => ['All', ...Array.from(new Set(baseRecords.map((r: any) => String(r.executive_name || r['Executive Name'] || 'UNKNOWN').trim()).filter(Boolean))).sort()], [baseRecords]);
+  const availableExecutives = useMemo(() => {
+    const execs = new Set<string>();
+    users.filter(u => u.role === 'EXECUTIVE').forEach(u => execs.add(u.name));
+    baseRecords.forEach((r: any) => {
+        const e = String(r.executive_name || r['Executive Name'] || 'UNKNOWN').trim();
+        if (e && e !== 'UNKNOWN') execs.add(e);
+    });
+    return ['All', ...Array.from(execs).sort()];
+}, [baseRecords, users]);
 
   const customerStats = useMemo(() => {
     const stats: Record<string, { count: number, totalPos: number }> = {};
@@ -218,9 +247,34 @@ export default function DataExplorer() {
     });
   }, [baseRecords, selectedState, selectedCity, selectedBucket, selectedExecutive, selectedAllocation, selectedPaidStatus, searchQuery, minPos, maxPos, activeCustomFilters, customFilterValues, exactCustomerFingerprint, addressKey, contactKey]);
 
+  
+
+  const sortedRecords = useMemo(() => {
+    if (sortConfig.length === 0) return filteredRecords;
+    return [...filteredRecords].sort((a: any, b: any) => {
+      for (const sort of sortConfig) {
+        let valA = a[sort.key];
+        let valB = b[sort.key];
+        
+        const numA = Number(valA);
+        const numB = Number(valB);
+        let comp = 0;
+        if (!isNaN(numA) && !isNaN(numB) && valA !== '' && valB !== '') {
+          comp = sort.direction === 'asc' ? numA - numB : numB - numA;
+        } else {
+          valA = String(valA || '').toLowerCase();
+          valB = String(valB || '').toLowerCase();
+          comp = sort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        if (comp !== 0) return comp;
+      }
+      return 0;
+    });
+  }, [filteredRecords, sortConfig]);
+
   const paginatedRecords = useMemo(() => {
-    return filteredRecords.slice((page - 1) * itemsPerPage, page * itemsPerPage);
-  }, [filteredRecords, page]);
+    return sortedRecords.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  }, [sortedRecords, page, itemsPerPage]);
 
     const handleExport = () => {
     if (filteredRecords.length === 0) return;
@@ -392,7 +446,55 @@ export default function DataExplorer() {
             );
           })}
           
+          
           <Popover>
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all border border-dashed border-border hover:bg-muted text-muted-foreground">
+                <Plus className="h-3 w-3" /> Add Sort
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-3" align="start">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Sort By Column</h4>
+              <div className="relative mb-2">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                <input 
+                  type="text" 
+                  placeholder="Search columns..." 
+                  className="w-full pl-6 pr-2 py-1 text-xs border border-border rounded bg-muted/20 outline-none focus:border-primary transition-colors"
+                  value={sortSearch}
+                  onChange={e => setSortSearch(e.target.value)}
+                />
+              </div>
+              <ScrollArea className="h-48 pr-2">
+                <div className="flex flex-col gap-1">
+                  {schema.filter(col => col.toLowerCase().includes(sortSearch.toLowerCase())).map(col => (
+                    <div key={col} className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded transition-colors cursor-pointer" onClick={() => {
+                      setSortConfig(prev => {
+                        const exists = prev.find(s => s.key === col);
+                        if (exists) return prev.filter(s => s.key !== col);
+                        return [...prev, { key: col, direction: 'asc' }];
+                      });
+                    }}>
+                      <Checkbox className="pointer-events-none" checked={!!sortConfig.find(s => s.key === col)} />
+                      <span className="text-xs truncate flex-1">{col}</span>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+          {sortConfig.map(sort => (
+            <div key={sort.key} className="flex items-center gap-1 bg-muted/50 border border-border px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider text-foreground">
+              Sort: {sort.key}
+              <button onClick={() => setSortConfig(prev => prev.map(s => s.key === sort.key ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' } : s))} className="ml-1 text-muted-foreground hover:text-foreground">
+                {sort.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+              </button>
+              <button onClick={() => setSortConfig(prev => prev.filter(s => s.key !== sort.key))} className="ml-1 text-muted-foreground hover:text-destructive">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+<Popover>
             <PopoverTrigger asChild>
               <button className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all border border-dashed border-border hover:bg-muted text-muted-foreground">
                 <Plus className="h-3 w-3" /> Add Filter
@@ -412,19 +514,22 @@ export default function DataExplorer() {
               </div>
               <div className="max-h-48 overflow-y-auto pr-1 no-scrollbar flex flex-col gap-1">
                 {schema
-                  .filter(col => !STANDARD_KEYS.includes(col) && !col.startsWith('_') && !activeCustomFilters.includes(col))
+                  .filter(col => !STANDARD_KEYS.includes(col) && !col.startsWith('_') )
                   .filter(col => col.toLowerCase().includes(customFilterSearch.toLowerCase()))
                   .map(col => (
-                    <button
-                      key={col}
-                      onClick={() => {
+                    <div key={col} className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded transition-colors cursor-pointer" onClick={() => {
+                      if (activeCustomFilters.includes(col)) {
+                        setActiveCustomFilters(prev => prev.filter(c => c !== col));
+                        const newVals = { ...customFilterValues };
+                        delete newVals[col];
+                        setCustomFilterValues(newVals);
+                      } else {
                         setActiveCustomFilters(prev => [...prev, col]);
-                        setCustomFilterSearch('');
-                      }}
-                      className="text-left px-2 py-2 text-xs rounded hover:bg-muted transition-colors truncate shrink-0 text-foreground"
-                    >
-                      {col}
-                    </button>
+                      }
+                    }}>
+                      <Checkbox className="pointer-events-none" checked={activeCustomFilters.includes(col)} />
+                      <span className="text-xs truncate flex-1">{col}</span>
+                    </div>
                 ))}
               </div>
             </PopoverContent>
@@ -535,32 +640,165 @@ export default function DataExplorer() {
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.05)] overflow-hidden">
+      
+        {/* Saved Views Bar */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+           {savedViews.map((view, i) => (
+              <div key={i} className="flex items-center bg-muted/30 border border-border rounded-md px-2 py-1 gap-2">
+                 <button className="text-xs font-bold text-foreground hover:text-primary truncate max-w-[120px]" title={view.name} onClick={() => {
+                    if (view.selectedState) setSelectedState(view.selectedState);
+                    if (view.selectedCity) setSelectedCity(view.selectedCity);
+                    if (view.selectedBucket) setSelectedBucket(view.selectedBucket);
+                    if (view.selectedExecutive) setSelectedExecutive(view.selectedExecutive);
+                    if (view.selectedAllocation) setSelectedAllocation(view.selectedAllocation);
+                    if (view.selectedPaidStatus) setSelectedPaidStatus(view.selectedPaidStatus);
+                    if (view.minPos) setMinPos(view.minPos);
+                    if (view.maxPos) setMaxPos(view.maxPos);
+                    if (view.activeCustomFilters) setActiveCustomFilters(view.activeCustomFilters);
+                    if (view.customFilterValues) setCustomFilterValues(view.customFilterValues);
+                    if (view.sortConfig) setSortConfig(view.sortConfig);
+                 }}>
+                    {view.name}
+                 </button>
+                 <button className="text-muted-foreground hover:text-destructive" onClick={() => {
+                    const next = [...savedViews];
+                    next.splice(i, 1);
+                    setSavedViews(next);
+                    localStorage.setItem('dataExplorerSavedViews', JSON.stringify(next));
+                 }}>
+                    <X className="h-3 w-3" />
+                 </button>
+              </div>
+           ))}
+           <button className="text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 border border-dashed border-border rounded-md px-2 py-1" onClick={() => {
+              const name = window.prompt("Enter a name for this saved view:");
+              if (!name) return;
+              const newView = {
+                 name,
+                 selectedState, selectedCity, selectedBucket, selectedExecutive,
+                 selectedAllocation, selectedPaidStatus, minPos, maxPos,
+                 activeCustomFilters, customFilterValues, sortConfig
+              };
+              const next = [...savedViews, newView];
+              setSavedViews(next);
+              localStorage.setItem('dataExplorerSavedViews', JSON.stringify(next));
+           }}>
+              <Save className="h-3 w-3" /> Save Current View
+           </button>
+        </div>
+
+        {selectedCases.size > 0 && (
+          <div className="bg-primary/5 border border-primary/20 p-3 mb-4 rounded-xl flex flex-wrap items-center gap-3 animate-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 text-primary font-bold text-sm">
+              <CheckCircle2 className="h-5 w-5" />
+              {selectedCases.size} cases selected
+            </div>
+            <div className="h-6 w-px bg-primary/20 mx-2"></div>
+            <select 
+              className="h-9 px-3 rounded-md border border-border bg-card text-sm outline-none focus:border-primary"
+              value={bulkAssignExec}
+              onChange={e => setBulkAssignExec(e.target.value)}
+            >
+              <option value="">-- Select Executive --</option>
+              {allExecutives.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+            <button 
+              className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider rounded-md hover:bg-primary/90 disabled:opacity-50"
+              disabled={!bulkAssignExec}
+              onClick={async () => {
+                 const updates = Array.from(selectedCases).map(id => ({ agreementid: id, field: 'executive_name', value: bulkAssignExec }));
+                 await bulkUpdateRecords(updates, authUser?.name || "System");
+                 setSelectedCases(new Set());
+                 setBulkAssignExec('');
+              }}
+            >
+              Assign Selected
+            </button>
+            <button 
+              className="ml-auto text-xs font-medium text-muted-foreground hover:text-foreground"
+              onClick={() => setSelectedCases(new Set())}
+            >
+              Clear Selection
+            </button>
+          </div>
+        )}
+        
+<div className="bg-card border border-border rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.05)] overflow-hidden">
         <div className="overflow-auto scrollbar-thin max-h-[calc(100vh-380px)] min-h-[400px]" ref={tableContainerRef}>
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead className="sticky top-0 z-20 bg-muted/95 backdrop-blur shadow-sm">
               <tr className="bg-muted/30 border-b border-border">
-                <th className="sticky left-0 top-0 z-30 bg-muted border-r border-border px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Aggr No</th>
-                <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Name</th>
-                <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Bucket</th>
-                <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">State</th>
-                <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">City</th>
-                <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Executive</th>
-                <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">POS</th>
-                <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">EMI</th>
-                <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">ECS</th>
-                <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">DAC</th>
-                <th className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">Status</th>
+                <th className={`sticky left-0 top-0 z-30 bg-muted border-r border-border px-2 ${thPad} w-10`}>
+        <Checkbox 
+          checked={paginatedRecords.length > 0 && paginatedRecords.every((r:any) => selectedCases.has(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID))}
+          onCheckedChange={(c) => {
+            if (c) {
+                const all = new Set(selectedCases);
+                paginatedRecords.forEach((r:any) => all.add(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID));
+                setSelectedCases(all);
+            } else {
+                const remaining = new Set(selectedCases);
+                paginatedRecords.forEach((r:any) => remaining.delete(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID));
+                setSelectedCases(remaining);
+            }
+          }}
+        />
+     </th>
+     <th className={`sticky left-10 top-0 z-30 bg-muted border-r border-border px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>Aggr No</th>
+                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>Name</th>
+                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>Bucket</th>
+                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>State</th>
+                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>City</th>
+                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>Executive</th>
+                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>POS</th>
+                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>EMI</th>
+                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>ECS</th>
+                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>DAC</th>
+                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>Status</th>
 
-                {(allExtraKeys.filter(col => (visibleExtraColumns || []).includes(col))).map(col => (
-                  <th key={col} id={`th-${col}`} className="px-2 py-2 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{col}</th>
+                {(visibleExtraColumns || []).filter(col => allExtraKeys.includes(col)).map(col => (
+                  <th 
+                    key={col} 
+                    id={`th-${col}`} 
+                    draggable
+                    onDragStart={(e) => {
+                        setDraggedCol(col);
+                        e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(e) => {
+                        e.preventDefault();
+                        if (draggedCol && draggedCol !== col) {
+                            setVisibleExtraColumns(prev => {
+                                const next = [...(prev || [])];
+                                const fromIdx = next.indexOf(draggedCol);
+                                const toIdx = next.indexOf(col);
+                                if (fromIdx !== -1 && toIdx !== -1) {
+                                    next.splice(fromIdx, 1);
+                                    next.splice(toIdx, 0, draggedCol);
+                                    localStorage.setItem('dataExplorerExtraColumns', JSON.stringify(next));
+                                }
+                                return next;
+                            });
+                        }
+                        setDraggedCol(null);
+                    }}
+                    onDragEnd={() => setDraggedCol(null)}
+                    className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold cursor-move ${draggedCol === col ? 'opacity-50' : ''}`}
+                    title="Drag to reorder"
+                  >
+                    {col}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody className="font-data text-[11px]">
               {paginatedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={11 + (visibleExtraColumns || []).length} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={12 + (visibleExtraColumns || []).length} className="p-8 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center">
                       <Filter className="h-8 w-8 mb-2 opacity-50" />
                       <p className="text-xs">No records match your filters.</p>
@@ -573,8 +811,19 @@ export default function DataExplorer() {
                   const isPaid = c.mainPaid === 1;
                   return (
                     <tr key={r.id || idx} className="border-b border-border hover:bg-muted/30 transition-colors">
-                      <td className="sticky left-0 z-10 bg-card border-r border-border px-2 py-1.5 text-primary font-bold cursor-pointer hover:underline" onClick={() => handleRowClick(r)}>{r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || '-'}</td>
-                                            <td className="px-2 py-1.5 cursor-pointer group" onClick={() => {
+                      <td className={`sticky left-0 z-10 bg-card border-r border-border px-2 ${tdPad}`} onClick={(e) => e.stopPropagation()}>
+        <Checkbox 
+          checked={selectedCases.has(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID)}
+          onCheckedChange={(c) => {
+             const n = new Set(selectedCases);
+             const id = r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID;
+             if (c) n.add(id); else n.delete(id);
+             setSelectedCases(n);
+          }}
+        />
+     </td>
+     <td className={`sticky left-10 z-10 bg-card border-r border-border px-2 ${tdPad} text-primary font-bold cursor-pointer hover:underline`} onClick={() => handleRowClick(r)}>{r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || '-'}</td>
+                                            <td className={`px-2 ${tdPad} cursor-pointer group`} onClick={() => {
                         const rawName = r.customer_name || r.CUSTOMERNAME || r['Customer Name'] || r.CUSTOMER_NAME || r.customername || '';
                         const name = String(rawName).trim().toUpperCase();
                         if (name !== '-' && name !== '') {
@@ -620,22 +869,22 @@ export default function DataExplorer() {
                           })()}
                         </div>
                       </td>
-                      <td className="px-2 py-1.5 text-foreground font-bold">{r.bom_bkt}</td>
-                      <td className="px-2 py-1.5 text-muted-foreground">{r.state || r.State || '-'}</td>
-                      <td className="px-2 py-1.5 text-muted-foreground">{r.city || r.City || '-'}</td>
-                      <td className="px-2 py-1.5 text-muted-foreground">{r.executive_name || r['Executive Name'] || '-'}</td>
-                      <td className="px-2 py-1.5 text-right font-bold text-foreground">{fmtCur(Number(r.principal_outstanding) || 0)}</td>
-                      <td className="px-2 py-1.5 text-right text-muted-foreground">{fmtCur(Number(r.emi_amt) || 0)}</td>
-                      <td className="px-2 py-1.5 text-right text-muted-foreground">{fmtCur(Number(r.ecs ?? r.ECS) || 0)}</td>
-                      <td className="px-2 py-1.5 text-right text-info font-bold">{fmtCur(Number(r.dac ?? r.DAC) || 0)}</td>
-                      <td className="px-2 py-1.5 text-right">
+                      <td className={`px-2 ${tdPad} text-foreground font-bold`}>{r.bom_bkt}</td>
+                      <td className={`px-2 ${tdPad} text-muted-foreground`}>{r.state || r.State || '-'}</td>
+                      <td className={`px-2 ${tdPad} text-muted-foreground`}>{r.city || r.City || '-'}</td>
+                      <td className={`px-2 ${tdPad} text-muted-foreground`}>{r.executive_name || r['Executive Name'] || '-'}</td>
+                      <td className={`px-2 ${tdPad} text-right font-bold text-foreground`}>{fmtCur(Number(r.principal_outstanding) || 0)}</td>
+                      <td className={`px-2 ${tdPad} text-right text-muted-foreground`}>{fmtCur(Number(r.emi_amt) || 0)}</td>
+                      <td className={`px-2 ${tdPad} text-right text-muted-foreground`}>{fmtCur(Number(r.ecs ?? r.ECS) || 0)}</td>
+                      <td className={`px-2 ${tdPad} text-right text-info font-bold`}>{fmtCur(Number(r.dac ?? r.DAC) || 0)}</td>
+                      <td className={`px-2 ${tdPad} text-right`}>
                         {isPaid 
                           ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-success/20 text-success uppercase tracking-wider">Paid</span>
                           : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-muted text-muted-foreground uppercase tracking-wider">Unpaid</span>
                         }
                       </td>
-                      {(allExtraKeys.filter(col => (visibleExtraColumns || []).includes(col))).map(col => (
-                        <td key={col} className="px-2 py-1.5 text-muted-foreground font-sans text-xs">
+                      {(visibleExtraColumns || []).filter(col => allExtraKeys.includes(col)).map(col => (
+                        <td key={col} className={`px-2 ${tdPad} text-muted-foreground font-sans text-xs`}>
                           {r[col] !== undefined && r[col] !== null ? String(r[col]) : '-'}
                         </td>
                       ))}

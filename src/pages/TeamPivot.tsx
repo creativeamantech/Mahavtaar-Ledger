@@ -1,4 +1,6 @@
-import React, { useMemo } from 'react';
+import { Checkbox } from '../components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import React, { useState, useMemo } from 'react';
 import {
   AppLayout } from '../components/layout/AppLayout';
 import { useData } from '../contexts/DataContext';
@@ -7,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { buildTeamPivot } from '../lib/pivots';
 import { fmtCur, fmtPct, pctColor } from '../lib/formatters';
 import { exportTeamPivot } from '../lib/exporter';
-import { Download , ArrowUpDown, Filter as FilterIcon } from 'lucide-react';
+import { Download, Plus, Search, ArrowUp, ArrowDown, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function TeamPivot() {
@@ -21,14 +23,78 @@ export default function TeamPivot() {
     if (filters.paid) params.set('paid', filters.paid);
     navigate(`/explorer?${params.toString()}`);
   };
-  const { user, isExecutive } = useAuth();
+  const { user, isExecutive, users } = useAuth();
+
+  const [filterText, setFilterText] = useState('');
+  const [sortSearch, setSortSearch] = useState('');
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'}[]>([]);
+
 
   const filtered = useMemo(() => {
     if (isExecutive() && user) return records.filter(r => r.executive_name === user.name);
     return records;
   }, [records, user, isExecutive]);
 
-  const teamData = useMemo(() => buildTeamPivot(filtered, targets), [filtered, targets]);
+  const rawTeamData = useMemo(() => {
+    const data = buildTeamPivot(filtered, targets);
+    
+    // Add executives from User Management who have 0 assigned cases
+    if (!isExecutive()) {
+        const existingExecs = new Set(data.map((d: any) => d.exec));
+        users.forEach(u => {
+            if (u.role === 'EXECUTIVE' && !existingExecs.has(u.name)) {
+                data.push({
+                    bkt: '-',
+                    exec: u.name,
+                    collection: 0, count: 0, totalPOS: 0, paid: 0, paidPOS: 0,
+                    posPaidOnlyCount: 0, posPaidOnlyPOS: 0, targetPOS: 0, cases: [],
+                    pct: 0, target: 0, dailyRequiredPOS: 0
+                });
+            }
+        });
+    }
+    
+    return data;
+  }, [filtered, targets, isExecutive, users]);
+  
+  const teamData = useMemo(() => {
+    let data = [...rawTeamData];
+    
+    if (filterText) {
+      data = data.filter(d => d.exec.toLowerCase().includes(filterText.toLowerCase()));
+    }
+    
+    
+    if (sortConfig.length > 0) {
+      data.sort((a: any, b: any) => {
+        for (const sort of sortConfig) {
+          let valA = a[sort.key];
+          let valB = b[sort.key];
+          
+          if (sort.key === 'pct') {
+            valA = a.totalPOS ? a.paidPOS / a.totalPOS : 0;
+            valB = b.totalPOS ? b.paidPOS / b.totalPOS : 0;
+          }
+
+          const numA = Number(valA);
+          const numB = Number(valB);
+          
+          let comp = 0;
+          if (!isNaN(numA) && !isNaN(numB) && valA !== '' && valB !== '') {
+            comp = sort.direction === 'asc' ? numA - numB : numB - numA;
+          } else {
+            valA = String(valA || '').toLowerCase();
+            valB = String(valB || '').toLowerCase();
+            comp = sort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          }
+          if (comp !== 0) return comp;
+        }
+        return 0;
+      });
+    }
+    
+    return data;
+  }, [rawTeamData, filterText, sortConfig]);
 
   const globalExecCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -46,13 +112,22 @@ export default function TeamPivot() {
       if (!groups[t.bkt]) groups[t.bkt] = [];
       groups[t.bkt].push(t);
     });
+    
+    // Create ranks
+    const allNames = Object.keys(globalExecCounts).sort((a, b) => globalExecCounts[b] - globalExecCounts[a]);
+    const getRank = (name: string) => allNames.indexOf(name) + 1;
+
     return Object.entries(groups)
-      .map(([bkt, items]) => [
-        bkt, 
-        items.sort((a, b) => (globalExecCounts[b.exec] || 0) - (globalExecCounts[a.exec] || 0))
-      ] as [string, any[]])
+      .map(([bkt, items]) => {
+         const sorted = sortConfig.length > 0 ? items : [...items].sort((a, b) => b.count - a.count);
+         const bucketSortedItems = [...items].sort((a, b) => b.count - a.count);
+         const getBucketRank = (name: string) => bucketSortedItems.findIndex(i => i.exec === name) + 1;
+         const itemsWithRank = sorted.map(item => ({ ...item, globalRank: getBucketRank(item.exec) }));
+         
+         return [bkt, itemsWithRank] as [string, any[]];
+      })
       .sort(([a], [b]) => Number(a) - Number(b));
-  }, [teamData, globalExecCounts]);
+  }, [teamData, globalExecCounts, sortConfig]);
 
   const grandTotal = useMemo(() => ({
     collection: teamData.reduce((s, t) => s + t.collection, 0),
@@ -89,34 +164,138 @@ export default function TeamPivot() {
 
   return (
     <AppLayout>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="font-sans text-xl font-extrabold uppercase tracking-wide">Team Overall Performance</h1>
-          <p className="font-sans text-xs text-muted-foreground">Bucket → Executive · Team Paid Logic</p>
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <span className="w-2 h-6 bg-primary rounded-full"></span>
+              Team Performance
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 pl-4">Enterprise Data Report · Bucket → Executive</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Search..." 
+                value={filterText}
+                onChange={e => setFilterText(e.target.value)}
+                className="pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all w-64 shadow-sm"
+              />
+            </div>
+            <button onClick={() => exportTeamPivot(teamData)} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 shadow-sm transition-all">
+              <Download className="w-4 h-4" /> Export Report
+            </button>
+          </div>
         </div>
-        <button onClick={() => exportTeamPivot(teamData)} className="flex h-[34px] items-center gap-2 rounded-md bg-primary px-4 font-sans text-xs font-bold text-primary-foreground hover:opacity-90">
-          <Download className="h-3.5 w-3.5" /> Export
-        </button>
-      </div>
 
-      <div className="bg-card border rounded-xl shadow-sm overflow-hidden rounded-xl">
-        <div className="overflow-auto scrollbar-thin max-h-[calc(100vh-250px)] min-h-[400px] relative bg-card">
+        {/* KPI Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {[
+            { label: 'Total POS', value: fmtCur(grandTotal.totalPOS), color: 'text-slate-900 dark:text-white', bg: 'bg-white dark:bg-slate-900' },
+            { label: 'Paid POS', value: fmtCur(grandTotal.paidPOS), color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50/50 dark:bg-emerald-950/20' },
+            { label: 'Needed POS', value: fmtCur(grandTotal.target), color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50/50 dark:bg-rose-950/20' },
+            { label: 'Overall %', value: fmtPct(grandTotal.totalPOS ? grandTotal.paidPOS / grandTotal.totalPOS : 0), color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50/50 dark:bg-blue-950/20' },
+          ].map((kpi, i) => (
+            <div key={i} className={`p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm ${kpi.bg} flex flex-col justify-center`}>
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{kpi.label}</div>
+              <div className={`text-2xl font-bold font-tabular-nums ${kpi.color}`}>{kpi.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Filter Team..."
+            value={filterText}
+            onChange={e => setFilterText(e.target.value)}
+            className="pl-8 pr-3 py-1.5 h-8 text-xs bg-card border border-border rounded-md outline-none focus:border-primary w-48"
+          />
+        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="flex h-8 items-center gap-1.5 px-3 rounded-md border border-dashed border-border hover:bg-muted text-xs font-bold text-muted-foreground uppercase tracking-wider bg-card">
+              <Plus className="h-3.5 w-3.5" /> Add Sort
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-3" align="start">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Sort By Column</h4>
+            <div className="relative mb-2">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <input 
+                type="text" 
+                placeholder="Search columns..." 
+                className="w-full pl-6 pr-2 py-1 text-xs border border-border rounded bg-muted/20 outline-none focus:border-primary transition-colors"
+                value={sortSearch}
+                onChange={e => setSortSearch(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1 max-h-64 overflow-y-auto no-scrollbar pr-2">
+              {[
+                { key: 'team', label: 'Team Member' },
+                { key: 'collection', label: 'Collection' },
+                { key: 'count', label: 'Total Count' },
+                { key: 'paid', label: 'Paid Count' },
+                { key: 'posPaidOnlyCount', label: 'POS Paid Only Count' },
+                { key: 'totalPOS', label: 'Total POS' },
+                { key: 'paidPOS', label: 'Paid POS' },
+                { key: 'target', label: 'Needed POS' },
+                { key: 'dailyRequiredPOS', label: 'Daily Required POS' },
+                { key: 'posPaidOnlyPOS', label: 'POS Paid Only POS' },
+                { key: 'pct', label: 'Total %' }
+              ].filter(opt => opt.label.toLowerCase().includes(sortSearch.toLowerCase())).map(opt => (
+                <div key={opt.key} className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded transition-colors cursor-pointer" onClick={() => {
+                  setSortConfig(prev => {
+                    const exists = prev.find(s => s.key === opt.key);
+                    if (exists) return prev.filter(s => s.key !== opt.key);
+                    return [...prev, { key: opt.key, direction: 'asc' }];
+                  });
+                }}>
+                  <Checkbox className="pointer-events-none" checked={!!sortConfig.find(s => s.key === opt.key)} />
+                  <span className="text-xs truncate flex-1">{opt.label}</span>
+                </div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+        
+    {sortConfig.map(sort => {
+    const labels: Record<string, string> = { city: 'City', collection: 'Collection', count: 'Total Count', paidCount: 'Paid Count', totalPOS: 'Total POS', paidPOS: 'Paid POS', pct: 'Paid %', team: 'Team', exec: 'Executive', target: 'Target', ach: 'Achieved', _posVal: 'Principal (POS)', _emiVal: 'EMI', aggr: 'Agreement Number', name: 'Customer Name' };
+    return (
+      <div key={sort.key} className="flex h-8 items-center gap-1.5 bg-muted/50 border border-border px-2 rounded-md text-xs font-bold uppercase tracking-wider text-foreground">
+          Sort: {labels[sort.key] || sort.key}
+          <button onClick={() => setSortConfig(prev => prev.map(s => s.key === sort.key ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' } : s))} className="ml-1 text-muted-foreground hover:text-foreground">
+            {sort.direction === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
+          </button>
+          <button onClick={() => setSortConfig(prev => prev.filter(s => s.key !== sort.key))} className="ml-1 text-muted-foreground hover:text-rose-600 dark:text-rose-400">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+    );
+  })}
+  
+      </div>
+      <div className="">
+
+        <div className="overflow-auto scrollbar-thin max-h-[calc(100vh-250px)] min-h-[400px] relative bg-card rounded-md border shadow-sm">
         <table className="w-full font-sans text-xs min-w-[1000px]">
-          <thead className="sticky top-0 z-30 bg-card shadow-sm border-b-2 border-border">
-            <tr className="border-b-2 border-border">
-              <th className="px-3 py-2 font-semibold text-center w-10 text-muted-foreground uppercase text-[10px]">S.No.</th>
-                  <th className="px-3 py-2.5 text-left font-medium text-muted-foreground uppercase tracking-wider text-xs">Bucket / Executive<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Collection<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total Count<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Paid Count<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">POS Paid Only Count<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Paid POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Needed POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Target Date<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Daily Required POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">POS Paid Only POS<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
-              <th className="px-3 py-2.5 text-right font-medium text-muted-foreground uppercase tracking-wider text-xs">Total %<span className="inline-flex items-center ml-1 opacity-40 hover:opacity-100 cursor-pointer transition-opacity"><ArrowUpDown className="h-3 w-3" /><FilterIcon className="h-3 w-3 ml-1" /></span></th>
+          <thead className="sticky top-0 z-30 bg-slate-50 dark:bg-slate-900 border-b border-border shadow-sm">
+            <tr>
+              <th  className={`${sortConfig.some(s => s.key === 'exec') ? 'text-foreground font-bold bg-slate-100 dark:bg-slate-800' : 'text-muted-foreground font-semibold'} px-3 py-3 text-left uppercase tracking-wider text-[11px] align-middle`}>Bucket / Executive</th>
+              <th  className={`${sortConfig.some(s => s.key === 'collection') ? 'text-foreground font-bold bg-slate-100 dark:bg-slate-800' : 'text-muted-foreground font-semibold'} px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle`}>Collection</th>
+              <th  className={`${sortConfig.some(s => s.key === 'count') ? 'text-foreground font-bold bg-slate-100 dark:bg-slate-800' : 'text-muted-foreground font-semibold'} px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle`}>Total Count</th>
+              <th  className={`${sortConfig.some(s => s.key === 'paid') ? 'text-foreground font-bold bg-slate-100 dark:bg-slate-800' : 'text-muted-foreground font-semibold'} px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle`}>Paid Count</th>
+              <th  className={`${sortConfig.some(s => s.key === 'posPaidOnlyCount') ? 'text-foreground font-bold bg-slate-100 dark:bg-slate-800' : 'text-muted-foreground font-semibold'} px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle`}>POS Paid Only Count</th>
+              <th  className={`${sortConfig.some(s => s.key === 'totalPOS') ? 'text-foreground font-bold bg-slate-100 dark:bg-slate-800' : 'text-muted-foreground font-semibold'} px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle`}>Total POS</th>
+              <th  className={`${sortConfig.some(s => s.key === 'paidPOS') ? 'text-foreground font-bold bg-slate-100 dark:bg-slate-800' : 'text-muted-foreground font-semibold'} px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle`}>Paid POS</th>
+              <th  className={`${sortConfig.some(s => s.key === 'target') ? 'text-foreground font-bold bg-slate-100 dark:bg-slate-800' : 'text-muted-foreground font-semibold'} px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle`}>Needed / DRR</th>
+
+              <th  className={`${sortConfig.some(s => s.key === 'posPaidOnlyPOS') ? 'text-foreground font-bold bg-slate-100 dark:bg-slate-800' : 'text-muted-foreground font-semibold'} px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle`}>POS Paid Only POS</th>
+              <th  className={`${sortConfig.some(s => s.key === 'pct') ? 'text-foreground font-bold bg-slate-100 dark:bg-slate-800' : 'text-muted-foreground font-semibold'} px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle`}>Total %</th>
             </tr>
           </thead>
           <tbody>
@@ -139,20 +318,20 @@ export default function TeamPivot() {
                     <td colSpan={9} className="px-3 py-2.5 font-sans text-[11px] font-bold text-primary uppercase tracking-[0.1em]">BUCKET {bkt}</td>
                   </tr>
                   {items.map((item: any, i: number) => (
-                    <tr key={item.exec} className="border-b border-border transition-colors hover:bg-muted">
-                      <td className="px-3 py-2 text-center font-bold text-muted-foreground text-xs">{i + 1}</td>
+                    <tr key={item.exec} className="border-b border-border transition-colors even:bg-slate-50/50 dark:even:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/80">
+                      <td className="px-3 py-2 text-center font-bold text-muted-foreground text-xs">{item.globalRank}</td>
                       <td className="px-3 py-2 pl-6">{item.exec}</td>
-                      <td className="px-3 py-2 text-right text-primary font-bold">{fmtCur(item.collection)}</td>
+                      <td className="px-3 py-2 text-right text-primary font-tabular-nums font-semibold">{fmtCur(item.collection)}</td>
                       <td className="px-3 py-2 text-right">{item.count}</td>
-                      <td className="px-3 py-2 text-right text-success">{item.paid}</td>
-                      <td className="px-3 py-2 text-right text-info">{item.posPaidOnlyCount}</td>
-                      <td className="px-3 py-2 text-right font-medium">{fmtCur(item.totalPOS)}</td>
-                      <td className="px-3 py-2 text-right font-medium">{fmtCur(item.paidPOS)}</td>
-                      <td className="px-3 py-2 text-right">{item.target <= 0 ? <span className="text-xs font-bold text-success uppercase">Achieved</span> : <span className="text-destructive font-bold">{fmtCur(item.target)}</span>}</td>
+                      <td className="px-3 py-2 text-right font-tabular-nums font-medium text-emerald-600 dark:text-emerald-400">{item.paid}</td>
+                      <td className="px-3 py-2 text-right font-tabular-nums font-medium text-blue-600 dark:text-blue-400">{item.posPaidOnlyCount}</td>
+                      <td className="px-3 py-2 text-right font-tabular-nums">{fmtCur(item.totalPOS)}</td>
+                      <td className="px-3 py-2 text-right font-tabular-nums">{fmtCur(item.paidPOS)}</td>
+                      <td className="px-3 py-2 text-right">{item.target <= 0 ? <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase">Achieved</span> : <span className="text-rose-600 dark:text-rose-400 font-tabular-nums font-bold tracking-tight">{fmtCur(item.target)}</span>}</td>
                       <td className="px-3 py-2 text-right text-xs text-muted-foreground">{item.targetDate || "-"}</td>
-                      <td className="px-3 py-2 text-right font-semibold text-amber-600">{fmtCur(item.dailyRequiredPOS || 0)}</td>
-                      <td className="px-3 py-2 text-right text-info">{fmtCur(item.posPaidOnlyPOS)}</td>
-                      <td className={`px-3 py-2 text-right font-bold ${pctColor(item.pct)}`}>{fmtPct(item.pct)}</td>
+                      <td className="px-3 py-2 text-right font-tabular-nums font-bold tracking-tight text-amber-600">{fmtCur(item.dailyRequiredPOS || 0)}</td>
+                      <td className="px-3 py-2 text-right font-tabular-nums font-medium text-blue-600 dark:text-blue-400">{fmtCur(item.posPaidOnlyPOS)}</td>
+                      <td className={`px-3 py-2 text-right font-tabular-nums font-bold ${pctColor(item.pct)}`}>{fmtPct(item.pct)}</td>
                     </tr>
                   ))}
                   <tr className="border-b border-[rgba(255,255,255,0.08)] bg-white/5 font-medium">
@@ -160,14 +339,14 @@ export default function TeamPivot() {
                     <td className="px-3 py-2.5 pl-6 text-muted-foreground uppercase text-xs tracking-wider">Bucket {bkt} Total</td>
                     <td className="px-3 py-2 text-right text-primary">{fmtCur(sub.collection)}</td>
                     <td className="px-3 py-2 text-right">{sub.count}</td>
-                    <td className="px-3 py-2 text-right text-success">{sub.paid}</td>
-                    <td className="px-3 py-2 text-right text-info">{sub.posPaidOnlyCount}</td>
+                    <td className="px-3 py-2 text-right font-tabular-nums font-medium text-emerald-600 dark:text-emerald-400">{sub.paid}</td>
+                    <td className="px-3 py-2 text-right font-tabular-nums font-medium text-blue-600 dark:text-blue-400">{sub.posPaidOnlyCount}</td>
                     <td className="px-3 py-2 text-right">{fmtCur(sub.totalPOS)}</td>
                     <td className="px-3 py-2 text-right">{fmtCur(sub.paidPOS)}</td>
-                    <td className="px-3 py-2 text-right">{sub.target <= 0 ? <span className="text-xs font-bold text-success uppercase">Achieved</span> : <span className="text-destructive font-bold">{fmtCur(sub.target)}</span>}</td>
+                    <td className="px-3 py-2 text-right">{sub.target <= 0 ? <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase">Achieved</span> : <span className="text-rose-600 dark:text-rose-400 font-tabular-nums font-bold tracking-tight">{fmtCur(sub.target)}</span>}</td>
                     <td className="px-3 py-2 text-right text-xs text-muted-foreground">-</td>
-                    <td className="px-3 py-2 text-right font-semibold text-amber-600">{fmtCur(sub.dailyRequiredPOS || 0)}</td>
-                    <td className="px-3 py-2 text-right text-info">{fmtCur(sub.posPaidOnlyPOS)}</td>
+                    <td className="px-3 py-2 text-right font-tabular-nums font-bold tracking-tight text-amber-600">{fmtCur(sub.dailyRequiredPOS || 0)}</td>
+                    <td className="px-3 py-2 text-right font-tabular-nums font-medium text-blue-600 dark:text-blue-400">{fmtCur(sub.posPaidOnlyPOS)}</td>
                     <td className={`px-3 py-2 text-right ${pctColor(subPct)}`}>{fmtPct(subPct)}</td>
                   </tr>
                 </React.Fragment>
@@ -176,19 +355,22 @@ export default function TeamPivot() {
             
           </tbody>
 
-          <tfoot className="bg-card font-bold sticky bottom-0 z-20 shadow-[0_-4px_15px_rgba(0,0,0,0.08)] border-t-2 border-border transition-colors">
+          <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold sticky bottom-0 z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] border-t-2 border-slate-400 dark:border-slate-600">
             <tr>
               <td className="px-3 py-2 text-center"></td>
               <td className="px-3 py-2.5 font-bold uppercase text-primary cursor-pointer hover:underline" onClick={() => navigateToExplorer({})}>Grand Total</td>
-              <td className="px-3 py-2.5 text-right font-data font-bold text-success cursor-pointer hover:bg-primary/10 transition-colors" onClick={() => navigateToExplorer({})}>{fmtCur(grandTotal.collection)}</td>
+              <td className="px-3 py-2.5 text-right font-data font-bold text-emerald-600 dark:text-emerald-400 cursor-pointer hover:bg-primary/10 transition-colors" onClick={() => navigateToExplorer({})}>{fmtCur(grandTotal.collection)}</td>
               <td className="px-3 py-2.5 text-right font-data font-bold cursor-pointer hover:bg-primary/10 transition-colors" onClick={() => navigateToExplorer({})}>{grandTotal.count}</td>
-              <td className="px-3 py-2.5 text-right font-data font-bold text-info cursor-pointer hover:bg-info/10 transition-colors" onClick={() => navigateToExplorer({ paid: 'Paid' })}>{grandTotal.paid}</td>
+              <td className="px-3 py-2.5 text-right font-data font-bold text-blue-600 dark:text-blue-400 cursor-pointer hover:bg-info/10 transition-colors" onClick={() => navigateToExplorer({ paid: 'Paid' })}>{grandTotal.paid}</td>
               <td className="px-3 py-2.5 text-right font-data font-bold cursor-pointer hover:bg-primary/10 transition-colors" onClick={() => navigateToExplorer({ paid: 'Paid' })}>{grandTotal.posPaidOnlyCount}</td>
               <td className="px-3 py-2.5 text-right font-data font-bold cursor-pointer hover:bg-primary/10 transition-colors" onClick={() => navigateToExplorer({})}>{fmtCur(grandTotal.totalPOS)}</td>
-              <td className="px-3 py-2.5 text-right font-data font-bold text-success cursor-pointer hover:bg-success/10 transition-colors" onClick={() => navigateToExplorer({ paid: 'Paid' })}>{fmtCur(grandTotal.paidPOS)}</td>
-              <td className="px-3 py-2.5 text-right font-data font-bold text-warning">{fmtCur(grandTotal.target)}</td>
-              <td className="px-3 py-2.5 text-right font-data font-bold text-muted-foreground">-</td>
-              <td className="px-3 py-2.5 text-right font-data font-bold text-amber-600">{fmtCur(grandTotal.dailyRequiredPOS || 0)}</td>
+              <td className="px-3 py-2.5 text-right font-data font-bold text-emerald-600 dark:text-emerald-400 cursor-pointer hover:bg-success/10 transition-colors" onClick={() => navigateToExplorer({ paid: 'Paid' })}>{fmtCur(grandTotal.paidPOS)}</td>
+              <td className="px-3 py-2.5 text-right">
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-rose-600 dark:text-rose-400 font-tabular-nums font-bold tracking-tight">{fmtCur(grandTotal.target)}</span>
+                  <span className="text-[10px] font-tabular-nums font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900/50 px-1.5 py-0.5 rounded-sm shadow-sm">DRR: {fmtCur(grandTotal.dailyRequiredPOS || 0)}/d</span>
+                </div>
+              </td>
               <td className="px-3 py-2.5 text-right font-data font-bold text-muted-foreground">{fmtCur(grandTotal.posPaidOnlyPOS)}</td>
               <td className={"px-3 py-2.5 text-right font-data font-bold " + pctColor(grandTotal.totalPOS ? grandTotal.paidPOS / grandTotal.totalPOS : 0)}>
                 {fmtPct(grandTotal.totalPOS ? grandTotal.paidPOS / grandTotal.totalPOS : 0)}

@@ -19,9 +19,6 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const MOCK_USERS: User[] = [
   { id: '1', name: 'Admin User', email: 'admin@company.com', role: 'ADMIN', permissions: { views: DEFAULT_PERMISSIONS.ADMIN } },
-  { id: '2', name: 'Ravi Manager', email: 'ravi@company.com', role: 'MANAGER', permissions: { views: DEFAULT_PERMISSIONS.MANAGER } },
-  { id: '3', name: 'Aarti Sharma', email: 'aarti@company.com', role: 'EXECUTIVE', permissions: { views: DEFAULT_PERMISSIONS.EXECUTIVE } },
-  { id: '4', name: 'Viewer User', email: 'viewer@company.com', role: 'VIEWER', permissions: { views: DEFAULT_PERMISSIONS.VIEWER } },
 ];
 
 // Browser-local demo-grade auth. Hash function to avoid plaintext password storage.
@@ -46,6 +43,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const defaultPasswordHash = await hashPassword('Admin@123');
           const seedUsers = MOCK_USERS.map(u => ({ ...u, passwordHash: defaultPasswordHash, plainPassword: 'Admin@123' }));
           await db.users.bulkPut(seedUsers);
+        } else {
+          // Cleanup legacy mock users if they still exist
+          const legacyIds = ['2', '3', '4'];
+          for (const id of legacyIds) {
+             const u = await db.users.get(id);
+             if (u && ['ravi@company.com', 'aarti@company.com', 'viewer@company.com'].includes(u.email)) {
+                 await db.users.delete(id);
+             }
+          }
         }
         const dbUsers = await db.users.toArray();
         
@@ -112,6 +118,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const existing = await db.users.get(id);
     if (existing) {
       await db.users.update(id, { ...existing, ...data });
+
+      // If name changed, ripple it through the database
+      if (data.name && data.name !== existing.name) {
+          const oldName = existing.name;
+          const newName = data.name;
+
+          // 1. Update loan_records
+          const recordsToUpdate = await db.loan_records.filter(r => r.executive_name === oldName || r['Executive Name'] === oldName).toArray();
+          if (recordsToUpdate.length > 0) {
+              const updatedRecords = recordsToUpdate.map(r => ({ ...r, executive_name: newName, ['Executive Name']: newName }));
+              await db.loan_records.bulkPut(updatedRecords);
+          }
+
+          // 2. Update customer_feedbacks
+          const feedbacksToUpdate = await db.customer_feedbacks.where('agentId').equals(id).toArray();
+          if (feedbacksToUpdate.length > 0) {
+              const updatedFeedbacks = feedbacksToUpdate.map(f => ({ ...f, agentName: newName }));
+              await db.customer_feedbacks.bulkPut(updatedFeedbacks);
+          }
+
+          // 3. Update attendance_logs
+          const attendanceToUpdate = await db.attendance_logs.where('userId').equals(id).toArray();
+          if (attendanceToUpdate.length > 0) {
+              const updatedAttendance = attendanceToUpdate.map(a => ({ ...a, userName: newName }));
+              await db.attendance_logs.bulkPut(updatedAttendance);
+          }
+      }
     }
   };
 

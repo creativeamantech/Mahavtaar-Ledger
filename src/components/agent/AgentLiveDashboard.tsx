@@ -46,7 +46,7 @@ export function AgentLiveDashboard() {
       userName: user.name,
       date: today,
       loginTime: new Date().toISOString(),
-      breakDuration: 45
+      breakDuration: 0
     };
     await db.attendance_logs.add(newRecord);
     setAttendanceRecord(newRecord);
@@ -63,6 +63,35 @@ export function AgentLiveDashboard() {
     setIsPunching(false);
     toast.success('Punched out successfully!');
   };
+
+  const handleBreakStart = async () => {
+    if (!attendanceRecord) return;
+    setIsPunching(true);
+    const updated = { ...attendanceRecord, currentBreakStart: new Date().toISOString() };
+    await db.attendance_logs.put(updated);
+    setAttendanceRecord(updated);
+    setIsPunching(false);
+    toast.success('Break started');
+  };
+
+  const handleBreakEnd = async () => {
+    if (!attendanceRecord || !attendanceRecord.currentBreakStart) return;
+    setIsPunching(true);
+    const endTime = new Date();
+    const startTime = parseISO(attendanceRecord.currentBreakStart);
+    const breakMins = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+    const updated = { 
+        ...attendanceRecord, 
+        breakDuration: (attendanceRecord.breakDuration || 0) + breakMins
+    };
+    delete updated.currentBreakStart;
+    
+    await db.attendance_logs.put(updated);
+    setAttendanceRecord(updated);
+    setIsPunching(false);
+    toast.success('Break ended');
+  };
+
 
 
     useEffect(() => {
@@ -150,8 +179,10 @@ export function AgentLiveDashboard() {
               <span>Today's Attendance</span>
               {attendanceRecord?.logoutTime ? (
                 <Badge variant="secondary"><CheckCircle2 className="w-3 h-3 mr-1"/> Shift Completed</Badge>
+              ) : attendanceRecord?.currentBreakStart ? (
+                <Badge variant="secondary" className="bg-amber-500 text-white animate-pulse hover:bg-amber-600">On Break</Badge>
               ) : attendanceRecord?.loginTime ? (
-                <Badge variant="default" className="bg-success text-white animate-pulse">Active Shift</Badge>
+                <Badge variant="default" className="bg-success text-white animate-pulse hover:bg-success/90">Active Shift</Badge>
               ) : null}
             </CardTitle>
           </CardHeader>
@@ -168,11 +199,19 @@ export function AgentLiveDashboard() {
                    <span className="ml-2">| Punched out at: <strong className="text-foreground">{new Date(attendanceRecord.logoutTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</strong></span>
                 )}
               </div>
-              <div>
+              
+              <div className="flex gap-2">
                 {!attendanceRecord ? (
                   <Button onClick={handlePunchIn} disabled={isPunching} className="w-full sm:w-auto">Punch In</Button>
                 ) : !attendanceRecord.logoutTime ? (
-                  <Button onClick={handlePunchOut} disabled={isPunching} variant="destructive" className="w-full sm:w-auto">Punch Out</Button>
+                  <>
+                    {!attendanceRecord.currentBreakStart ? (
+                        <Button onClick={handleBreakStart} disabled={isPunching} variant="secondary" className="w-full sm:w-auto">Start Break</Button>
+                    ) : (
+                        <Button onClick={handleBreakEnd} disabled={isPunching} variant="default" className="bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto">End Break</Button>
+                    )}
+                    <Button onClick={handlePunchOut} disabled={isPunching} variant="destructive" className="w-full sm:w-auto">Punch Out</Button>
+                  </>
                 ) : null}
               </div>
             </div>

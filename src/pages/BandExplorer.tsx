@@ -4,7 +4,9 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { useData } from '../contexts/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { fmtCur } from '../lib/formatters';
-import { Download, Filter, MapPin, Database, DollarSign, Activity, FileText, Settings2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Download, Plus, X, ArrowUp, ArrowDown, Filter, MapPin, Database, DollarSign, Activity, FileText, Settings2 } from 'lucide-react';
+import { Checkbox } from '../components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Link } from 'react-router-dom';
 import { Slider } from '../components/ui/slider';
 
@@ -52,7 +54,8 @@ export default function BandExplorer() {
     setTempMax(String(maxPos));
   }, [minPos, maxPos]);
 
-  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc'|'desc'}>({ key: 'city_count', direction: 'desc' });
+  const [sortSearch, setSortSearch] = useState('');
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc'|'desc'}[]>([{ key: 'city', direction: 'asc' }]);
 
   const handleApply = () => {
     const mn = Number(tempMin) || 0;
@@ -83,19 +86,8 @@ export default function BandExplorer() {
     return () => clearTimeout(timer);
   }, [tempMin, tempMax, minPos, maxPos]);
 
-  const handleSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'desc';
-    if (sortConfig.key === key && sortConfig.direction === 'desc') {
-        direction = 'asc';
-    }
-    setSortConfig({ key, direction });
-  };
-
-  const SortIcon = ({ columnKey }: { columnKey: string }) => {
-    if (sortConfig.key !== columnKey) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
-    return sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
-  };
-
+  
+  
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleApply();
   };
@@ -108,30 +100,37 @@ export default function BandExplorer() {
         cityCounts[r._city] = (cityCounts[r._city] || 0) + 1;
      });
 
-     return filtered.sort((a, b) => {
-         let comparison = 0;
-         switch (sortConfig.key) {
-            case 'city_count':
-                comparison = cityCounts[a._city] - cityCounts[b._city];
-                if (comparison === 0) comparison = a._posVal - b._posVal;
-                break;
-            case 'aggr':
-                comparison = a._aggr.localeCompare(b._aggr);
-                break;
-            case 'name':
-                comparison = a._name.localeCompare(b._name);
-                break;
-            case 'city':
-                comparison = a._city.localeCompare(b._city);
-                break;
-            case 'pos':
-                comparison = a._posVal - b._posVal;
-                break;
-            case 'emi':
-                comparison = a._emiVal - b._emiVal;
-                break;
+          return filtered.sort((a, b) => {
+         for (const sort of sortConfig) {
+             let comparison = 0;
+             switch (sort.key) {
+                case 'city_count':
+                    comparison = (cityCounts[a._city] || 0) - (cityCounts[b._city] || 0);
+                    if (comparison === 0) comparison = a._posVal - b._posVal;
+                    break;
+                case 'aggr':
+                    comparison = (a._aggr || '').localeCompare(b._aggr || '');
+                    break;
+                case 'name':
+                    comparison = (a._name || '').localeCompare(b._name || '');
+                    break;
+                case 'city':
+                    comparison = (a._city || '').localeCompare(b._city || '');
+                    break;
+                case 'pos':
+                case '_posVal':
+                    comparison = a._posVal - b._posVal;
+                    break;
+                case 'emi':
+                case '_emiVal':
+                    comparison = a._emiVal - b._emiVal;
+                    break;
+             }
+             if (comparison !== 0) {
+                 return sort.direction === 'asc' ? comparison : -comparison;
+             }
          }
-         return sortConfig.direction === 'asc' ? comparison : -comparison;
+         return 0;
      });
   }, [dataWithBands, minPos, maxPos, sortConfig]);
 
@@ -215,10 +214,66 @@ export default function BandExplorer() {
 
                 </div>
             </div>
-            <div className="text-xs text-muted-foreground font-medium bg-muted/30 px-3 py-1.5 rounded-md border border-border/50">
-                Total Filter Applied: <span className="text-primary font-bold">{fmtCur(minPos)} to {fmtCur(maxPos)}</span> {globalBucket !== 'ALL' ? `| Bucket: ${globalBucket}` : ''}
+            <div className="flex flex-wrap items-center gap-2 mt-4 sm:mt-0">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="flex h-8 items-center gap-1.5 px-3 rounded-md border border-dashed border-border hover:bg-muted text-xs font-bold text-muted-foreground uppercase tracking-wider bg-card">
+                    <Plus className="h-3.5 w-3.5" /> Add Sort
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-3" align="start">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Sort By Column</h4>
+          <div className="relative mb-2">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+            <input 
+              type="text" 
+              placeholder="Search columns..." 
+              className="w-full pl-6 pr-2 py-1 text-xs border border-border rounded bg-muted/20 outline-none focus:border-primary transition-colors"
+              value={sortSearch}
+              onChange={e => setSortSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1 max-h-64 overflow-y-auto no-scrollbar pr-2">
+            {[
+              { key: 'aggr', label: 'Agreement Number' },
+              { key: 'name', label: 'Customer Name' },
+              { key: 'city', label: 'City' },
+              { key: '_posVal', label: 'Principal (POS)' },
+              { key: '_emiVal', label: 'EMI' }
+            ].filter(opt => opt.label.toLowerCase().includes(sortSearch.toLowerCase())).map(opt => (
+              <div key={opt.key} className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded transition-colors cursor-pointer" onClick={() => {
+                setSortConfig(prev => {
+                  const exists = prev.find(s => s.key === opt.key);
+                  if (exists) return prev.filter(s => s.key !== opt.key);
+                  return [...prev, { key: opt.key, direction: 'asc' }];
+                });
+              }}>
+                <Checkbox className="pointer-events-none" checked={!!sortConfig.find(s => s.key === opt.key)} />
+                <span className="text-xs truncate flex-1">{opt.label}</span>
+              </div>
+            ))}
+          </div>
+                </PopoverContent>
+              </Popover>
+              
+    {sortConfig.map(sort => {
+    const labels: Record<string, string> = { city: 'City', collection: 'Collection', count: 'Total Count', paidCount: 'Paid Count', totalPOS: 'Total POS', paidPOS: 'Paid POS', pct: 'Paid %', team: 'Team', exec: 'Executive', target: 'Target', ach: 'Achieved', _posVal: 'Principal (POS)', _emiVal: 'EMI', aggr: 'Agreement Number', name: 'Customer Name' };
+    return (
+      <div key={sort.key} className="flex h-8 items-center gap-1.5 bg-muted/50 border border-border px-2 rounded-md text-xs font-bold uppercase tracking-wider text-foreground">
+          Sort: {labels[sort.key] || sort.key}
+          <button onClick={() => setSortConfig(prev => prev.map(s => s.key === sort.key ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' } : s))} className="ml-1 text-muted-foreground hover:text-foreground">
+            {sort.direction === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
+          </button>
+          <button onClick={() => setSortConfig(prev => prev.filter(s => s.key !== sort.key))} className="ml-1 text-muted-foreground hover:text-destructive">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+    );
+  })}
+  
             </div>
         </div>
+
 
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -256,20 +311,20 @@ export default function BandExplorer() {
                 <table className="w-full text-sm text-left whitespace-nowrap">
                     <thead className="text-xs uppercase sticky top-0 z-20 shadow-md">
                         <tr className="bg-muted text-muted-foreground">
-                            <th className="px-4 py-3 font-semibold border-b border-border bg-muted cursor-pointer hover:bg-muted/80" onClick={() => handleSort('aggr')}>
-                                <div className="flex items-center">Agreement Number <SortIcon columnKey="aggr" /></div>
+                            <th className="px-4 py-3 font-semibold border-b border-border bg-muted">
+                                <div className="flex items-center">Agreement Number</div>
                             </th>
-                            <th className="px-4 py-3 font-semibold border-b border-border bg-muted cursor-pointer hover:bg-muted/80" onClick={() => handleSort('name')}>
-                                <div className="flex items-center">Customer Name <SortIcon columnKey="name" /></div>
+                            <th className="px-4 py-3 font-semibold border-b border-border bg-muted">
+                                <div className="flex items-center">Customer Name</div>
                             </th>
-                            <th className="px-4 py-3 font-semibold border-b border-border bg-muted cursor-pointer hover:bg-muted/80" onClick={() => handleSort('city')}>
-                                <div className="flex items-center">City <SortIcon columnKey="city" /></div>
+                            <th className="px-4 py-3 font-semibold border-b border-border bg-muted">
+                                <div className="flex items-center">City</div>
                             </th>
-                            <th className="px-4 py-3 font-semibold border-b border-border bg-muted cursor-pointer hover:bg-muted/80" onClick={() => handleSort('pos')}>
-                                <div className="flex items-center justify-end">Principal (POS) <SortIcon columnKey="pos" /></div>
+                            <th className="px-4 py-3 font-semibold border-b border-border bg-muted">
+                                <div className="flex items-center justify-end">Principal (POS)</div>
                             </th>
-                            <th className="px-4 py-3 font-semibold border-b border-border bg-muted cursor-pointer hover:bg-muted/80" onClick={() => handleSort('emi')}>
-                                <div className="flex items-center justify-end">EMI <SortIcon columnKey="emi" /></div>
+                            <th className="px-4 py-3 font-semibold border-b border-border bg-muted">
+                                <div className="flex items-center justify-end">EMI</div>
                             </th>
                         </tr>
                     </thead>
