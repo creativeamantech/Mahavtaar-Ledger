@@ -1,9 +1,17 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Undo2, Redo2, ChevronLeft, ChevronRight, Menu, Search, UserCircle } from 'lucide-react';
+import { Undo2, Redo2, ChevronLeft, ChevronRight, Menu, Search, UserCircle, LogOut } from 'lucide-react';
 import { useData } from '../../contexts/DataContext';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ThemeToggle } from '../ThemeToggle';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -25,7 +33,7 @@ const PAGE_TITLES: Record<string, string> = {
 export function MobileHeader() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   
   const { records, globalBucket, setGlobalBucket, undo, redo, canUndo, canRedo } = useData();
   const isExplorer = location.pathname === '/explorer';
@@ -68,9 +76,34 @@ export function MobileHeader() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <button className="p-1 hover:bg-muted rounded-full transition-colors text-primary" title="User Profile">
-            <UserCircle className="h-6 w-6" />
-          </button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center hover:bg-muted p-0.5 rounded-full transition-colors border border-border/50 bg-card">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-bold shadow-sm">
+                  {user?.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold">{user?.name}</span>
+                  <span className="text-xs text-muted-foreground">{user?.role}</span>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                <UserCircle className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
         </div>
       </div>
 

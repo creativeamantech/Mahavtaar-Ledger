@@ -1,14 +1,22 @@
-import { Undo2, Redo2, ChevronLeft, ChevronRight, Search, Bell, UserCircle, Menu } from 'lucide-react';
+import { Undo2, Redo2, ChevronLeft, ChevronRight, Search, Bell, UserCircle, Menu, LogOut } from "lucide-react";
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { ThemeToggle } from '../ThemeToggle';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AgentNotifications } from '../agent/AgentNotifications';
 
 export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean; setCollapsed?: (val: boolean | ((prev: boolean) => boolean)) => void }) {
   const { records, undo, redo, canUndo, canRedo, globalBucket, setGlobalBucket } = useData();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const isExplorer = location.pathname === '/explorer';
 
@@ -189,9 +197,33 @@ export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean
               <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary ring-2 ring-card"></span>
             </button>
           )}
-          <Link to="/profile" className="p-1 hover:bg-muted rounded-full transition-colors text-primary ml-1" title="User Profile">
-            <UserCircle className="h-6 w-6" />
-          </Link>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 hover:bg-muted p-1 pr-2 rounded-full transition-colors ml-1 border border-border/50">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-bold shadow-sm">
+                  {user?.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex flex-col items-start min-w-0 max-w-[120px]">
+                  <span className="text-xs font-bold text-foreground truncate w-full text-left">{user?.name}</span>
+                  <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider truncate w-full text-left">{user?.role}</span>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                <UserCircle className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
         </div>
       </div>
     </header>
