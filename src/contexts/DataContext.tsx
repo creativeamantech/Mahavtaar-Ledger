@@ -32,12 +32,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [records, setRecords] = useState<any[]>([]);
 
   const exposedRecords = useMemo(() => {
-    if (!user) return records; // Or [] but usually records is fine or empty anyway
+    if (!user) return records;
     if (user.role === 'EXECUTIVE') {
-      const uName = String(user.name).trim().toLowerCase();
+      const targetNames = [
+        user.assignedExecutiveName ? String(user.assignedExecutiveName).trim().toLowerCase() : null,
+        user.name ? String(user.name).trim().toLowerCase() : null
+      ].filter(Boolean) as string[];
+
       return records.filter(r => {
-        const execName = String(r.executive_name || r['Executive Name'] || r.EXECUTIVE_NAME || '').trim().toLowerCase();
-        return execName === uName;
+        const rawExec = String(
+          r.executive_name || 
+          r['Executive Name'] || 
+          r.EXECUTIVE_NAME || 
+          r.FOS_Name || 
+          r['FOS Name'] || 
+          r.fos || 
+          r.FOS || 
+          r.executive || 
+          ''
+        ).trim().toLowerCase();
+        
+        if (!rawExec) return false;
+        return targetNames.some(target => rawExec === target || rawExec.includes(target) || target.includes(rawExec));
       });
     }
     return records;

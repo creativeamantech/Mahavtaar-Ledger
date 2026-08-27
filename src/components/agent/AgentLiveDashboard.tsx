@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import { MessageSquare, IndianRupee as Rupee, UserCheck, Users, Clock } from "lucide-react";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export function AgentLiveDashboard() {
     const { user } = useAuth();
@@ -106,7 +107,7 @@ export function AgentLiveDashboard() {
         return null;
     }
 
-    const agentCustomers = records?.filter((r: any) => String(r.FOS_Name || r['FOS Name'] || r.EXECUTIVE_NAME || '').trim().toUpperCase() === user.name.toUpperCase()) || [];
+    const agentCustomers = records || [];
     
     const feedbackToday = feedbacks.filter(f => isToday(parseISO(f.createdAt)));
     

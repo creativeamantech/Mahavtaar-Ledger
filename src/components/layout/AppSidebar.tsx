@@ -4,51 +4,47 @@ import { useAuth } from '../../contexts/AuthContext';
 import { VIEWS } from '../../constants/permissions';
 import { 
   Home, Edit3, UserPlus, TrendingUp, Target, 
-  Search, Building2, Network, Waves, 
+  Search, Building2, GitFork, Waves, 
   MonitorPlay, MessageSquare, CalendarClock, 
   Sliders, History, LogOut, Hexagon, PanelLeftClose, PanelLeftOpen,
-  ChevronDown, ChevronRight
+  ChevronDown, ChevronRight, Network, Wifi
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 const NAV_GROUPS = [
   {
-    title: 'Admin Hub',
+    title: 'Strategy & Monitoring',
     items: [
-      { label: 'Dashboard', icon: Home, path: '/dashboard', view: VIEWS.DASHBOARD },
-      { label: 'Data Entry', icon: Edit3, path: '/data-entry', view: VIEWS.DATA_ENTRY },
-      { label: 'Assignment', icon: UserPlus, path: '/assignment', view: VIEWS.ASSIGNMENT },
+      { label: 'Admin Strategy', icon: Home, path: '/dashboard', view: VIEWS.DASHBOARD },
+      { label: 'Executive Strategy', icon: TrendingUp, path: '/exec-dashboard', view: VIEWS.EXEC_DASHBOARD },
+      { label: 'Live Tracking', icon: MonitorPlay, path: '/live-monitoring', view: VIEWS.LIVE_MONITORING },
     ]
   },
   {
-    title: 'Executive Hub',
+    title: 'Execution Tracking',
     items: [
-      { label: 'Exec Dashboard', icon: TrendingUp, path: '/exec-dashboard', view: VIEWS.EXEC_DASHBOARD },
-      { label: 'Team Perf', icon: Target, path: '/exec-team-perf', view: VIEWS.EXEC_TEAM_PERF },
-    ]
-  },
-  {
-    title: 'Data & Reports',
-    items: [
+      { label: 'Team Performance', icon: Target, path: '/exec-team-perf', view: VIEWS.EXEC_TEAM_PERF },
       { label: 'Data Explorer', icon: Search, path: '/explorer', view: VIEWS.DATA_EXPLORER },
-      { label: 'City Pivot', icon: Building2, path: '/city-pivot', view: VIEWS.CITY_PIVOT },
-      { label: 'Team Pivot', icon: Network, path: '/team-pivot', view: VIEWS.TEAM_PIVOT },
       { label: 'Band Analysis', icon: Waves, path: '/band-explorer', view: VIEWS.CITY_TEAM_MATRIX },
     ]
   },
   {
-    title: 'Monitoring & QA',
+    title: 'Reconciliation',
     items: [
-      { label: 'Live Monitoring', icon: MonitorPlay, path: '/live-monitoring', view: VIEWS.LIVE_MONITORING },
-      { label: 'All Feedback', icon: MessageSquare, path: '/feedbacks', view: VIEWS.FEEDBACKS },
-      { label: 'Attendance', icon: CalendarClock, path: '/attendance', view: VIEWS.ATTENDANCE },
+      { label: 'City Ledger', icon: Building2, path: '/city-pivot', view: VIEWS.CITY_PIVOT },
+      { label: 'Team Ledger', icon: GitFork, path: '/team-pivot', view: VIEWS.TEAM_PIVOT },
+      { label: 'Quality & Feedback', icon: MessageSquare, path: '/feedbacks', view: VIEWS.FEEDBACKS },
     ]
   },
   {
-    title: 'Settings',
+    title: 'System & Data',
     items: [
-      { label: 'System Config', icon: Sliders, path: '/settings', view: VIEWS.SETTINGS },
-      { label: 'Audit Log', icon: History, path: '/audit', view: VIEWS.AUDIT_LOG },
+      { label: 'Data Ingestion', icon: Edit3, path: '/data-entry', view: VIEWS.DATA_ENTRY },
+      { label: 'Case Assignment', icon: UserPlus, path: '/assignment', view: VIEWS.ASSIGNMENT },
+      { label: 'Attendance Logs', icon: CalendarClock, path: '/attendance', view: VIEWS.ATTENDANCE },
+      { label: 'Connectivity Hub', icon: Wifi, path: '/connectivity', view: VIEWS.CONNECTIVITY_HUB },
+      { label: 'Settings', icon: Sliders, path: '/settings', view: VIEWS.SETTINGS },
+      { label: 'Audit Logs', icon: History, path: '/audit', view: VIEWS.AUDIT_LOG },
     ]
   }
 ];
@@ -99,7 +95,7 @@ export function AppSidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 scrollbar-thin scrollbar-thumb-white/10 flex flex-col gap-2">
         {NAV_GROUPS.map((group, idx) => {
-          if (group.title === 'Executive Hub' && user?.role !== 'EXECUTIVE') return null;
+          
           const visibleItems = group.items.filter(item => hasPermission(item.view));
           if (visibleItems.length === 0) return null;
           

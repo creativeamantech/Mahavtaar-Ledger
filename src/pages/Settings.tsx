@@ -7,7 +7,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
 import { DEFAULT_PERMISSIONS, VIEWS, Role, User } from '../constants/permissions';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Check, ChevronsUpDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, ChevronsUpDown, Network, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { UserFormSheet } from '../components/settings/UserFormSheet';
 import { db, backupSystemData, resetSystemData } from '../lib/db';
@@ -98,12 +99,18 @@ function UserManagementTab() {
   };
 
   const handleSave = async (data: Partial<User>) => {
+    const role = (data.role || 'VIEWER') as Role;
+    const views = data.permissions?.views && data.permissions.views.length > 0 
+      ? data.permissions.views 
+      : (DEFAULT_PERMISSIONS[role] || []);
+
     if (editingUser) {
         await updateUser(editingUser.id, { 
             name: data.name, 
             email: data.email, 
-            role: data.role as Role, 
-            permissions: DEFAULT_PERMISSIONS[data.role as Role],
+            role: role, 
+            permissions: { views },
+            assignedExecutiveName: data.assignedExecutiveName,
             maintenanceMode: (data as any).maintenanceMode
         });
         toast.success('User updated successfully');
@@ -111,9 +118,10 @@ function UserManagementTab() {
         await addUser({
             name: data.name!,
             email: data.email!,
-            role: data.role as Role,
+            role: role,
             password: data.plainPassword!,
-            permissions: DEFAULT_PERMISSIONS[data.role as Role]
+            permissions: { views },
+            assignedExecutiveName: data.assignedExecutiveName,
         });
         toast.success('User created successfully');
     }
@@ -130,6 +138,26 @@ function UserManagementTab() {
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
     { key: 'role', label: 'Role', render: (val: Role) => <StatusBadge status={val} /> },
+    { 
+      key: 'assignedExecutiveName', 
+      label: 'Data Mapping (FOS)', 
+      render: (val: string, row: any) => val ? (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+          {val}
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground italic">Auto-match ({row.name})</span>
+      )
+    },
+    {
+      key: 'permissions',
+      label: 'Authorized Pages',
+      render: (val: any) => (
+        <span className="text-xs font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground">
+          {val?.views?.length || 0} pages
+        </span>
+      )
+    },
     { key: 'actions', label: 'Actions', render: (_: any, row: any) => (
       <div className="flex gap-2">
         <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Pencil className="w-4 h-4" /></Button>
@@ -164,7 +192,7 @@ function UserManagementTab() {
 }
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<'users' | 'targets' | 'system'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'targets' | 'system' | 'connectivity'>('users');
   const { user } = useAuth();
   
   if (user?.role !== 'ADMIN') {
@@ -180,7 +208,7 @@ export default function Settings() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-headline font-bold tracking-tight mb-2">Settings</h1>
-          <p className="text-muted-foreground">Manage users, system configurations, and targets.</p>
+          <p className="text-muted-foreground">Manage users, system configurations, connectivity, and targets.</p>
         </div>
 
         <div className="flex gap-2 border-b">
@@ -197,16 +225,43 @@ export default function Settings() {
             Global Targets
           </button>
           <button
+            onClick={() => setActiveTab('connectivity')}
+            className={`px-4 py-2 font-medium border-b-2 transition-colors ${activeTab === 'connectivity' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+            Connectivity & Mesh
+          </button>
+          <button
             onClick={() => setActiveTab('system')}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${activeTab === 'system' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           >
-            System
+            System & Backups
           </button>
         </div>
 
         <div className="pt-4">
           {activeTab === 'users' && <UserManagementTab />}
           {activeTab === 'targets' && <AdvancedTargetsTab />}
+          {activeTab === 'connectivity' && (
+            <div className="max-w-2xl bg-card border rounded-2xl p-6 space-y-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-primary/10 text-primary">
+                  <Network className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Multi-System Connectivity Hub</h3>
+                  <p className="text-xs text-muted-foreground">Configure decentralized P2P synchronization, device pairing, and live sessions.</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Connect multiple office PCs and mobile terminals without a centralized server. Manage peer approvals, view who is logged in where, resolve concurrent edit conflicts, and manage disaster recovery backups.
+              </p>
+              <Link to="/connectivity">
+                <Button className="font-bold text-xs">
+                  Open Dedicated Connectivity Hub <ArrowRight className="w-4 h-4 ml-1.5" />
+                </Button>
+              </Link>
+            </div>
+          )}
           {activeTab === 'system' && <SystemTab />}
         </div>
       </div>

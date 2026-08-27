@@ -1,0 +1,29 @@
+--- src/lib/sync/syncEngine.ts
++++ src/lib/sync/syncEngine.ts
+@@ -497,6 +497,22 @@
+ 
+   async requestPairingFromPayload(payloadStr: string): Promise<void> {
+     try {
++      // Handle 6-digit code format directly
++      if (/^\d{3}-\d{3}$/.test(payloadStr.trim())) {
++        const req: SyncMessageEnvelope = {
++          id: `PAIR-REQ-${Date.now()}`,
++          type: 'PAIRING_REQUEST',
++          senderPeerId: this.deviceIdentity.peerId,
++          senderDeviceId: this.deviceIdentity.deviceId,
++          targetPeerId: 'BROADCAST',
++          timestamp: new Date().toISOString(),
++          lamport: getLamportClock(),
++          payload: {
++            pairingCode: payloadStr.trim(),
++            deviceName: this.deviceIdentity.deviceName,
++            os: this.deviceIdentity.os
++          }
++        };
++        await this.transportManager.broadcast(req);
++        this.notify();
++        return;
++      }
++
+       const payload = JSON.parse(payloadStr);
+       if (!payload.peerId || !payload.code) {

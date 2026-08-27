@@ -32,9 +32,8 @@ export default function ExecTeamPerf() {
 
 
   const filtered = useMemo(() => {
-    if (isExecutive() && user) return records.filter(r => r.executive_name === user.name);
     return records;
-  }, [records, user, isExecutive]);
+  }, [records]);
 
   const rawCityData = useMemo(() => buildExecCityPivot(filtered, targets), [filtered, targets]);
   

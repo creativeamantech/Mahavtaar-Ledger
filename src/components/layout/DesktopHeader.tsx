@@ -1,4 +1,4 @@
-import { Undo2, Redo2, ChevronLeft, ChevronRight, Search, Bell, UserCircle, Menu, LogOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Bell, UserCircle, Menu, LogOut } from "lucide-react";
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,9 +13,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AgentNotifications } from '../agent/AgentNotifications';
+import { SyncStatusIndicator } from '../sync/SyncStatusIndicator';
 
 export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean; setCollapsed?: (val: boolean | ((prev: boolean) => boolean)) => void }) {
-  const { records, undo, redo, canUndo, canRedo, globalBucket, setGlobalBucket } = useData();
+  const { records, globalBucket, setGlobalBucket } = useData();
   const { user, logout } = useAuth();
   const location = useLocation();
   const isExplorer = location.pathname === '/explorer';
@@ -40,7 +41,9 @@ export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   const searchResults = useMemo(() => {
@@ -70,9 +73,10 @@ export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean
 
   return (
     <header className="hidden md:flex sticky top-0 z-30 justify-between items-center px-4 h-14 bg-card/95 backdrop-blur border-b border-border shadow-sm">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 w-1/4">
         {setCollapsed && (
           <button 
+            type="button"
             onClick={() => setCollapsed(prev => !prev)}
             className="p-1.5 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground shrink-0"
             title="Toggle Sidebar"
@@ -81,63 +85,53 @@ export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean
           </button>
         )}
         
-        {/* Navigation & Undo/Redo */}
+        {/* Navigation */}
         <div className="flex items-center gap-1 bg-muted/30 p-1 rounded-lg border border-border/50">
-          <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground" title="Go Back">
+          <button 
+            type="button"
+            onClick={() => {
+              if (window.history.state && window.history.state.idx > 0) {
+                navigate(-1);
+              } else {
+                navigate('/dashboard', { replace: true });
+              }
+            }} 
+            className="p-1.5 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground" 
+            title="Go Back"
+          >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <button onClick={() => navigate(1)} className="p-1.5 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground" title="Go Forward">
+          <button type="button" onClick={() => navigate(1)} className="p-1.5 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground" title="Go Forward">
             <ChevronRight className="h-4 w-4" />
-          </button>
-          
-          <div className="w-px h-4 bg-border/80 mx-1"></div>
-          
-          <button onClick={undo} disabled={!canUndo} className={`p-1.5 rounded-md transition-colors ${canUndo ? 'text-primary hover:bg-primary/10' : 'text-muted-foreground/30'}`} title="Undo Action">
-            <Undo2 className="h-4 w-4" />
-          </button>
-          <button onClick={redo} disabled={!canRedo} className={`p-1.5 rounded-md transition-colors ${canRedo ? 'text-primary hover:bg-primary/10' : 'text-muted-foreground/30'}`} title="Redo Action">
-            <Redo2 className="h-4 w-4" />
-          </button>
+          </button>          
         </div>
-            </div>
-
-      <div className="flex-1 flex justify-start sm:justify-center px-4 overflow-x-auto no-scrollbar">
-        {availableBuckets.length > 0 && (
-          <div className="flex bg-muted/30 p-1 rounded-lg border border-border w-max">
-            <button
-              onClick={() => setGlobalBucket('ALL')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${globalBucket === 'ALL' ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:bg-muted'}`}
-            >
-              All Buckets
-            </button>
-            {availableBuckets.map(b => (
-              <button
-                key={b}
-                onClick={() => setGlobalBucket(b)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${globalBucket === b ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:bg-muted'}`}
-              >
-                Bucket {b}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
-      <div className="flex items-center gap-3 text-muted-foreground">
+      <div className="flex-1 flex justify-center px-4">
         <div className="relative" ref={searchContainerRef}>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <input 
             type="text" 
-            placeholder="Search universally (Press Enter)..." 
+            placeholder="Quick Search or Agreements..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => setIsSearchFocused(true)}
             onKeyDown={handleSearchSubmit}
-            className="pl-9 pr-4 h-9 bg-muted/50 border border-border rounded-full text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all w-[240px] lg:w-[320px]"
+            className="pl-9 pr-14 h-9 bg-muted/50 border border-border rounded-full text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all w-[300px] lg:w-[400px]"
           />
+          <kbd 
+            onClick={() => {
+              const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true });
+              document.dispatchEvent(event);
+            }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer pointer-events-auto inline-flex items-center gap-0.5 rounded border border-border bg-card px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted-foreground shadow-xs hover:bg-muted"
+            title="Press Cmd+K or Ctrl+K"
+          >
+            ⌘K
+          </kbd>
           
           {isSearchFocused && searchQuery.length >= 2 && (
-            <div className="absolute top-full mt-2 w-full lg:w-[400px] bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden right-0">
+            <div className="absolute top-full mt-2 w-full lg:w-[500px] bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden left-1/2 -translate-x-1/2">
               <div className="p-2 border-b border-border bg-muted/30">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Search Results</span>
               </div>
@@ -186,8 +180,33 @@ export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean
             </div>
           )}
         </div>
+      </div>
 
+      <div className="flex items-center gap-3 text-muted-foreground w-1/4 justify-end">
+        {availableBuckets.length > 0 && (
+          <div className="flex bg-muted/30 p-1 rounded-lg border border-border w-max mr-2 hidden lg:flex">
+            <button
+              type="button"
+              onClick={() => setGlobalBucket('ALL')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${globalBucket === 'ALL' ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              All Buckets
+            </button>
+            {availableBuckets.map(b => (
+              <button
+                type="button"
+                key={b}
+                onClick={() => setGlobalBucket(b)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${globalBucket === b ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:bg-muted'}`}
+              >
+                Bkt {b}
+              </button>
+            ))}
+          </div>
+        )}
+        
         <div className="flex items-center gap-1.5 border-l border-border pl-3">
+          <SyncStatusIndicator />
           <ThemeToggle />
           {user?.role === 'EXECUTIVE' ? (
             <AgentNotifications />
@@ -223,7 +242,6 @@ export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
         </div>
       </div>
     </header>

@@ -1,0 +1,6 @@
+{
+  "name": "Collection Portfolio & Data Explorer",
+  "description": "Enterprise collections & recovery management platform with multi-tier density data explorer, smart filter presets, and performance analytics",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

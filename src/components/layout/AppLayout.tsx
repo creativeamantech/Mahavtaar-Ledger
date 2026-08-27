@@ -3,6 +3,7 @@ import { AppSidebar } from './AppSidebar';
 import { MobileHeader } from './MobileHeader';
 import { DesktopHeader } from './DesktopHeader';
 import { BottomNav } from './BottomNav';
+import { GlobalCommandBar } from './GlobalCommandBar';
 import { useMediaQuery } from '../../hooks/use-media-query';
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -17,6 +18,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   
   return (
     <div className="min-h-screen bg-background w-full overflow-clip">
+      <GlobalCommandBar />
       <div className="hidden md:block">
         <AppSidebar 
           collapsed={collapsed} 

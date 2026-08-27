@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DataProvider } from "./contexts/DataContext";
+import { SyncProvider } from "./contexts/SyncContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ExecDashboard from "./pages/ExecDashboard";
@@ -15,6 +16,7 @@ import DataExplorer from "./pages/DataExplorer";
 import Assignment from "./pages/Assignment";
 import BandExplorer from "./pages/BandExplorer";
 import SettingsPage from "./pages/Settings";
+import ConnectivityHub from "./pages/ConnectivityHub";
 import LiveMonitoring from "./pages/LiveMonitoring";
 import AllFeedback from "./pages/AllFeedback";
 import Attendance from "./pages/Attendance";
@@ -24,6 +26,7 @@ import CustomerDetail from "./pages/CustomerDetail";
 import NotFound from "./pages/NotFound";
 import { PermissionGate } from "./components/PermissionGate";
 import { VIEWS } from "./constants/permissions";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function ProtectedRoute({ children, view }: { children: React.ReactNode; view?: string }) {
   const { user } = useAuth();
@@ -46,6 +49,7 @@ function AppRoutes() {
       <Route path="/team-pivot" element={<ProtectedRoute view={VIEWS.TEAM_PIVOT}><TeamPivot /></ProtectedRoute>} />
       <Route path="/band-explorer" element={<ProtectedRoute view={VIEWS.CITY_TEAM_MATRIX}><BandExplorer /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute view={VIEWS.SETTINGS}><SettingsPage /></ProtectedRoute>} />
+      <Route path="/connectivity" element={<ProtectedRoute view={VIEWS.CONNECTIVITY_HUB}><ConnectivityHub /></ProtectedRoute>} />
       <Route path="/live-monitoring" element={<ProtectedRoute view={VIEWS.LIVE_MONITORING}><LiveMonitoring /></ProtectedRoute>} />
       <Route path="/feedbacks" element={<ProtectedRoute view={VIEWS.FEEDBACKS}><AllFeedback /></ProtectedRoute>} />
       <Route path="/attendance" element={<ProtectedRoute view={VIEWS.ATTENDANCE}><Attendance /></ProtectedRoute>} />
@@ -63,12 +67,16 @@ const App = () => (
   <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
   <AuthProvider>
     <DataProvider>
-      <TooltipProvider>
-        <Sonner />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </TooltipProvider>
+      <SyncProvider>
+        <TooltipProvider>
+          <Sonner />
+          <BrowserRouter>
+            <ErrorBoundary>
+              <AppRoutes />
+            </ErrorBoundary>
+          </BrowserRouter>
+        </TooltipProvider>
+      </SyncProvider>
     </DataProvider>
   </AuthProvider>
   </ThemeProvider>

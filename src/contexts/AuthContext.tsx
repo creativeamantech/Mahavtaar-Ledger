@@ -55,14 +55,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         const dbUsers = await db.users.toArray();
         
-        // Sync permissions for predefined roles so changes take effect
+        // Ensure default permissions only if none are configured
         const updatedUsers = [];
         for (const u of dbUsers) {
-          if (['ADMIN', 'MANAGER', 'EXECUTIVE', 'VIEWER'].includes(u.role)) {
-             u.permissions = { views: DEFAULT_PERMISSIONS[u.role] };
-             await db.users.put(u);
+          if (!u.permissions || !u.permissions.views || u.permissions.views.length === 0) {
+            u.permissions = { views: DEFAULT_PERMISSIONS[u.role] || [] };
+            await db.users.put(u);
           }
-          updatedUsers.push({ id: u.id, name: u.name, email: u.email, role: u.role as Role, permissions: u.permissions, plainPassword: u.plainPassword });
+          updatedUsers.push({ 
+            id: u.id, 
+            name: u.name, 
+            email: u.email, 
+            role: u.role as Role, 
+            permissions: u.permissions, 
+            plainPassword: u.plainPassword,
+            assignedExecutiveName: u.assignedExecutiveName,
+            maintenanceMode: u.maintenanceMode
+          });
         }
         setUsers(updatedUsers);
 
@@ -87,7 +96,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Invalid credentials');
     }
     
-    const safeUser: User = { id: found.id, name: found.name, email: found.email, role: found.role as Role, permissions: found.permissions, plainPassword: found.plainPassword };
+    const safeUser: User = { 
+      id: found.id, 
+      name: found.name, 
+      email: found.email, 
+      role: found.role as Role, 
+      permissions: found.permissions || { views: DEFAULT_PERMISSIONS[found.role] || [] }, 
+      plainPassword: found.plainPassword,
+      assignedExecutiveName: found.assignedExecutiveName,
+      maintenanceMode: found.maintenanceMode
+    };
     setUser(safeUser);
     return safeUser;
   };
@@ -96,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasPermission = (view: string) => {
     if (!user) return false;
-    if (user.role === 'ADMIN') return true;
+    if (user.role === 'ADMIN' || view === 'connectivity_hub') return true;
     return user.permissions?.views?.includes(view) ?? false;
   };
 

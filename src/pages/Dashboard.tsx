@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
 import { useMediaQuery } from '../hooks/use-media-query';
 import { calculateRow } from '../lib/calculations';
-import { fmtCur } from '../lib/formatters';
-import { DollarSign, AlertCircle, Database, BarChart3, TrendingUp, Download } from 'lucide-react';
+import { fmtCur, fmtPct } from '../lib/formatters';
+import { DollarSign, AlertCircle, Database, BarChart3, TrendingUp, Download, Target } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ComposedChart, Line } from 'recharts';
+import { ProgressRing, TargetProgressCard } from '../components/dashboard/TargetProgressCard';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ export default function Dashboard() {
     });
   };
   
-  const { records, isLoading, globalBucket } = useData();
+  const { records, targets, isLoading, globalBucket } = useData();
 
   const filteredRecords = useMemo(() => {
     if (!records) return [];
@@ -33,6 +34,7 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     let totalCollection = 0;
+    let totalPaidPOS = 0;
     
     const byBucket: Record<string, any> = {};
     const byCity: Record<string, any> = {};
@@ -49,9 +51,14 @@ export default function Dashboard() {
         const dac = Number(row.dac ?? row.DAC) || 0;
         const pos = Number(row.principal_outstanding) || 0;
         const emi = Number(row.emi_amt) || 0;
-        const isPaid = c.mainPaid === 1; const execName = String(row.executive_name || row["Executive Name"] || row.EXECUTIVE_NAME || "").trim(); const isAllocated = execName.length > 0;
+        const isPaid = c.mainPaid === 1; 
+        const execName = String(row.executive_name || row["Executive Name"] || row.EXECUTIVE_NAME || "").trim(); 
+        const isAllocated = execName.length > 0;
 
-        if (isPaid) totalCollection += dac;
+        if (isPaid) {
+          totalCollection += dac;
+          totalPaidPOS += (c.mainPaidPOS || pos);
+        }
         
         if (emi < 500) smallCasesEMI++;
         if (pos < 1000) smallCasesPOS++;
@@ -60,12 +67,13 @@ export default function Dashboard() {
             if (emi < 500 && pos < 1000) smallCasesBoth++;
         }
         
-        if (!byBucket[bucket]) byBucket[bucket] = { collection: 0, cases: 0, pos: 0, paid: 0, unpaid: 0, allocated: 0, unallocated: 0 };
+        if (!byBucket[bucket]) byBucket[bucket] = { collection: 0, cases: 0, pos: 0, paid: 0, unpaid: 0, allocated: 0, unallocated: 0, paidPOS: 0 };
         byBucket[bucket].cases++;
         byBucket[bucket].pos += pos;
         if (isPaid) {
             byBucket[bucket].collection += dac;
             byBucket[bucket].paid++;
+            byBucket[bucket].paidPOS += (c.mainPaidPOS || pos);
         } else {
             byBucket[bucket].unpaid++;
         }
@@ -127,8 +135,42 @@ export default function Dashboard() {
         return valB - valA;
     });
 
-    return { totalCollection, bucketData, cityData, smallCasesEMI, smallCasesPOS, totalSmallCases, smallCasesBoth, sortedBands };
-  }, [filteredRecords]);
+    const totalPOS = bucketData.reduce((acc, b) => acc + b.pos, 0);
+    const paidPOS = totalPaidPOS;
+    
+    // Calculate total target and needed
+    let totalTargetPOS = 0;
+    bucketData.forEach(b => {
+      const bkt = b.bucket;
+      const pct = targets?.bucketTargets?.[bkt] ?? targets?.defaultTargetPct ?? 85;
+      totalTargetPOS += (b.pos * pct) / 100;
+    });
+
+    const neededPOS = Math.max(0, totalTargetPOS - paidPOS);
+    const targetDate = targets?.targetDate ? new Date(targets.targetDate) : new Date();
+    const today = new Date();
+    const diffTime = Math.max(1, targetDate.getTime() - today.getTime());
+    const remainingDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    const dailyRequiredPOS = neededPOS / remainingDays;
+
+    return { 
+      totalCollection, 
+      bucketData, 
+      cityData, 
+      smallCasesEMI, 
+      smallCasesPOS, 
+      totalSmallCases, 
+      smallCasesBoth, 
+      sortedBands,
+      totalPOS,
+      paidPOS,
+      totalTargetPOS,
+      neededPOS,
+      dailyRequiredPOS,
+      remainingDays,
+      targetPct: targets?.defaultTargetPct ?? 85
+    };
+  }, [filteredRecords, targets]);
 
   const selectionStats = useMemo(() => {
     let cases = 0;
@@ -236,42 +278,93 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Top Cockpit KPI Cards with Progress Rings & DRR */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-card border border-border p-6 rounded-xl shadow-sm flex flex-col justify-center">
-          <div className="flex items-center gap-2 text-muted-foreground mb-2 font-medium">
-            <DollarSign className="h-4 w-4" /> Total Collection (DAC)
+        {/* Card 1: Target Velocity & DRR with Circular Progress */}
+        <TargetProgressCard
+          totalPOS={stats.totalPOS}
+          paidPOS={stats.paidPOS}
+          totalCollection={stats.totalCollection}
+          neededPOS={stats.neededPOS}
+          dailyRequiredPOS={stats.dailyRequiredPOS}
+          targetPct={stats.targetPct}
+          remainingDays={stats.remainingDays}
+        />
+
+        {/* Card 2: Collection Overview with mini progress ring */}
+        <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-border transition-all">
+          <div className="flex items-start justify-between">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                Total Collection (DAC)
+              </span>
+              <div className="text-2xl font-black text-emerald-500 font-mono tracking-tight">
+                {fmtCur(stats.totalCollection)}
+              </div>
+            </div>
+            <ProgressRing 
+              percentage={stats.totalPOS > 0 ? (stats.paidPOS / stats.totalPOS) * 100 : 0} 
+              size={44} 
+              strokeWidth={4}
+            />
           </div>
-          <div className="text-3xl font-bold text-success">{fmtCur(stats.totalCollection)}</div>
+          <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Paid POS: <strong className="text-foreground">{fmtCur(stats.paidPOS)}</strong></span>
+            <span className="font-mono text-emerald-500 font-semibold">{fmtPct(stats.totalPOS ? stats.paidPOS / stats.totalPOS : 0)}</span>
+          </div>
         </div>
         
-        <div className="bg-card border border-border p-6 rounded-xl shadow-sm flex flex-col justify-center">
-          <div className="flex items-center gap-2 text-muted-foreground mb-2 font-medium">
-            <AlertCircle className="h-4 w-4" /> Total Small Cases
+        {/* Card 3: Total Small Cases */}
+        <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-border transition-all">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <AlertCircle className="h-3.5 w-3.5 text-amber-500" /> Small Accounts
+              </span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                Low Ticket
+              </span>
+            </div>
+            <div className="text-2xl font-black text-amber-500 font-mono tracking-tight">
+              {stats.totalSmallCases.toLocaleString()}
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              EMI &lt; ₹500 <strong>or</strong> POS &lt; ₹1k
+            </div>
           </div>
-          <div className="text-3xl font-bold text-warning">{stats.totalSmallCases.toLocaleString()}</div>
-          <div className="text-xs text-muted-foreground mt-1">
-            Accounts with EMI &lt; ₹500 <strong>or</strong> POS &lt; ₹1k
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-1 flex justify-between">
-            <span>EMI only: {(stats.smallCasesEMI - stats.smallCasesBoth).toLocaleString()}</span>
-            <span>POS only: {(stats.smallCasesPOS - stats.smallCasesBoth).toLocaleString()}</span>
-            <span>Both: {stats.smallCasesBoth.toLocaleString()}</span>
+          
+          <div className="mt-3 pt-2.5 border-t border-border/50 grid grid-cols-3 text-[10px] text-muted-foreground">
+            <div>EMI: <strong className="text-foreground">{(stats.smallCasesEMI - stats.smallCasesBoth).toLocaleString()}</strong></div>
+            <div className="text-center">POS: <strong className="text-foreground">{(stats.smallCasesPOS - stats.smallCasesBoth).toLocaleString()}</strong></div>
+            <div className="text-right">Both: <strong className="text-foreground">{stats.smallCasesBoth.toLocaleString()}</strong></div>
           </div>
         </div>
 
-        <div className="bg-card border border-border p-6 rounded-xl shadow-sm flex flex-col justify-center">
-          <div className="flex items-center gap-2 text-muted-foreground mb-2 font-medium">
-            <Database className="h-4 w-4" /> Total Outstanding (POS)
+        {/* Card 4: Total Portfolio Outstanding */}
+        <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-border transition-all">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Database className="h-3.5 w-3.5 text-primary" /> Total Portfolio
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {filteredRecords.length.toLocaleString()} cases
+              </span>
+            </div>
+            <div className="text-2xl font-black text-foreground font-mono tracking-tight">
+              {fmtCur(stats.totalPOS)}
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Principal outstanding across all cases
+            </div>
           </div>
-          <div className="text-3xl font-bold text-destructive">{fmtCur(stats.bucketData.reduce((acc, b) => acc + b.pos, 0))}</div>
-          <div className="text-xs text-muted-foreground mt-1">Total principal across all cases</div>
-        </div>
 
-        <div className="bg-card border border-border p-6 rounded-xl shadow-sm flex flex-col justify-center">
-          <div className="flex items-center gap-2 text-muted-foreground mb-2 font-medium">
-            <TrendingUp className="h-4 w-4" /> Total Cases Analyzed
+          <div className="mt-3 pt-2.5 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Buckets Active: <strong className="text-foreground">{stats.bucketData.length}</strong></span>
+            <span className="text-[11px] text-primary font-semibold cursor-pointer hover:underline" onClick={() => navigate('/explorer')}>
+              Explore Grid →
+            </span>
           </div>
-          <div className="text-3xl font-bold text-primary">{filteredRecords.length.toLocaleString()}</div>
         </div>
       </div>
 

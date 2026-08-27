@@ -64,6 +64,8 @@ export interface StoredUser {
   passwordHash: string;
   plainPassword?: string;
   permissions: { views: string[] };
+  assignedExecutiveName?: string;
+  maintenanceMode?: boolean;
 }
 
 export interface AttendanceLog {
@@ -77,6 +79,89 @@ export interface AttendanceLog {
   currentBreakStart?: string;
 }
 
+export interface SyncPeerRecord {
+  peerId: string;
+  deviceId: string;
+  deviceName: string;
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'DISABLED' | 'BLOCKED';
+  connectionType: 'LOCAL_LAN' | 'INTERNET_P2P' | 'RELAY_FALLBACK' | 'OFFLINE';
+  ipAddress?: string;
+  os?: string;
+  browser?: string;
+  appVersion?: string;
+  userEmail?: string;
+  userName?: string;
+  userRole?: string;
+  publicKey?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  lastSeen: string;
+  lastSync?: string;
+  latencyMs?: number;
+  syncDirection?: 'BIDIRECTIONAL' | 'PUSH_ONLY' | 'PULL_ONLY';
+  autoSyncEnabled?: boolean;
+}
+
+export interface SyncJournalRecord {
+  id: string;
+  timestamp: string;
+  lamport: number;
+  tableName: 'loan_records' | 'customer_feedbacks' | 'attendance_logs' | 'state_targets' | 'users';
+  recordId: string;
+  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  data: any;
+  diff?: any;
+  peerId: string;
+  deviceId: string;
+  status: 'QUEUED' | 'SYNCED' | 'FAILED' | 'RETRY';
+  syncedPeers?: string[];
+  hash: string;
+  retryCount?: number;
+}
+
+export interface SyncConflictRecord {
+  id: string;
+  tableName: string;
+  recordId: string;
+  localData: any;
+  remoteData: any;
+  fieldConflicts: { field: string; localVal: any; remoteVal: any }[];
+  localTimestamp: string;
+  remoteTimestamp: string;
+  localPeerId: string;
+  remotePeerId: string;
+  status: 'OPEN' | 'RESOLVED' | 'AUTO_RESOLVED';
+  detectedAt: string;
+  resolvedAt?: string;
+  resolutionStrategy?: 'KEEP_LOCAL' | 'KEEP_REMOTE' | 'FIELD_MERGE' | 'MANUAL' | 'LWW';
+  resolvedData?: any;
+  resolvedBy?: string;
+}
+
+export interface SyncSettingsRecord {
+  key: string;
+  value: any;
+}
+
+export interface BackupSnapshotRecord {
+  id: string;
+  timestamp: string;
+  type: 'MANUAL' | 'SCHEDULED' | 'PEER_SNAPSHOT';
+  label?: string;
+  sizeBytes: number;
+  recordCounts: {
+    records: number;
+    feedbacks: number;
+    attendance: number;
+    users: number;
+  };
+  checksum: string;
+  status: 'VALID' | 'RESTORED' | 'CORRUPTED';
+  location: 'LOCAL_STORAGE' | 'EXTERNAL_DRIVE' | 'PEER_TRANSFER';
+  encrypted: boolean;
+  dataPayload?: string;
+}
+
 class MahavtaarDB extends Dexie {
   loan_records!: Table<LoanRecord, string>;
   upload_sessions!: Table<UploadSession, string>;
@@ -85,6 +170,11 @@ class MahavtaarDB extends Dexie {
   customer_feedbacks!: Table<CustomerFeedback, string>;
   users!: Table<StoredUser, string>;
   attendance_logs!: Table<AttendanceLog, string>;
+  sync_peers!: Table<SyncPeerRecord, string>;
+  sync_journal!: Table<SyncJournalRecord, string>;
+  sync_conflicts!: Table<SyncConflictRecord, string>;
+  sync_settings!: Table<SyncSettingsRecord, string>;
+  backup_snapshots!: Table<BackupSnapshotRecord, string>;
 
   constructor() {
     super('mahavtaar_tracker_db');
@@ -96,6 +186,21 @@ class MahavtaarDB extends Dexie {
       state_targets: 'key',
       users: 'id, email',
       attendance_logs: 'id, userId, date'
+    });
+
+    this.version(4).stores({
+      customer_feedbacks: 'id, agreementid, createdAt',
+      loan_records: 'agreementid, city, state, bom_bkt, executive_name',
+      upload_sessions: 'id, createdAt, type',
+      audit_log: 'id, agreementid, createdAt',
+      state_targets: 'key',
+      users: 'id, email',
+      attendance_logs: 'id, userId, date',
+      sync_peers: 'peerId, deviceId, status, connectionType, lastSeen, approvedAt',
+      sync_journal: 'id, timestamp, tableName, recordId, action, peerId, status, lamport',
+      sync_conflicts: 'id, tableName, recordId, status, detectedAt',
+      sync_settings: 'key',
+      backup_snapshots: 'id, timestamp, type, status'
     });
   }
 }

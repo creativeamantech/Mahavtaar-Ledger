@@ -1,26 +1,33 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import {
-  useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { AppLayout } from '../components/layout/AppLayout';
 import { calculateRow } from '../lib/calculations';
 import { fmtCur } from '../lib/formatters';
-import { Filter, Database, Search, Download, Columns, Plus, X, ArrowUp, ArrowDown, Save, CheckCircle2, ChevronRight, LayoutTemplate } from 'lucide-react';
+import { 
+  Database, Search, Columns, Plus, X, ArrowUp, ArrowDown, 
+  CheckCircle2, AlignJustify, Rows, Layers, Bookmark, RotateCcw, 
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, ArrowUpDown
+} from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Checkbox } from '../components/ui/checkbox';
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "../components/ui/sheet";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Badge } from "../components/ui/badge";
-import { ResponsiveFilter } from '../components/ui/ResponsiveFilter';
 
+import { BucketBadge, getBucketRowBorder } from '../components/explorer/BucketBadge';
+import { StatusBadge } from '../components/explorer/StatusBadge';
+import { ContextStrip } from '../components/explorer/ContextStrip';
+import { FilterStrip } from '../components/explorer/FilterStrip';
+import { MultiCaseModal } from '../components/explorer/MultiCaseModal';
 
 const STANDARD_KEYS = [
   "agreementid", "agreement_no", "AGREEMENTID", "AGREEMENTNO", "AGREEMENT_NO", "Agreement No", "loan_id", "Loan ID",
@@ -38,56 +45,64 @@ const STANDARD_KEYS = [
 
 export default function DataExplorer() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { records, schema, isLoading } = useData();
+  const { records, schema, isLoading, bulkUpdateRecords } = useData();
   const { user, isExecutive, users } = useAuth();
-  
+  const navigate = useNavigate();
+
   // Filter States
   const [selectedState, setSelectedState] = useState<string>(searchParams.get('state') || 'All');
   const [selectedCity, setSelectedCity] = useState<string>(searchParams.get('city') || 'All');
   const [selectedBucket, setSelectedBucket] = useState<string>(searchParams.get('bucket') || 'All');
   const [selectedExecutive, setSelectedExecutive] = useState<string>(searchParams.get('executive') || 'All');
   const [selectedAllocation, setSelectedAllocation] = useState<string>(searchParams.get('allocated') || 'All');
-  const [selectedPaidStatus, setSelectedPaidStatus] = useState<string>(searchParams.get('paid') || 'All'); // All, Paid, Unpaid
+  const [selectedPaidStatus, setSelectedPaidStatus] = useState<string>(searchParams.get('paid') || 'All');
   const [searchQuery, setSearchQuery] = useState<string>(searchParams.get('q') || '');
   const [exactCustomerFingerprint, setExactCustomerFingerprint] = useState<string | null>(null);
   const [minPos, setMinPos] = useState<string>(searchParams.get('minPos') || '');
   const [maxPos, setMaxPos] = useState<string>(searchParams.get('maxPos') || '');
   const [activeCustomFilters, setActiveCustomFilters] = useState<string[]>([]);
   const [customFilterValues, setCustomFilterValues] = useState<Record<string, string>>({});
-  const [customFilterSearch, setCustomFilterSearch] = useState('');
-  const [columnFilterSearches, setColumnFilterSearches] = useState<Record<string, string>>({});
 
   const [selectedCases, setSelectedCases] = useState<Set<string>>(new Set());
-  const [density, setDensity] = useState<'compact' | 'comfortable'>('compact');
-  const thPad = density === 'comfortable' ? 'py-4' : 'py-2';
-  const tdPad = density === 'comfortable' ? 'py-3' : 'py-1.5';
+  
+  // 3-Tier View Density Switcher
+  const [density, setDensity] = useState<'compact' | 'comfortable' | 'detailed'>(() => {
+    const saved = localStorage.getItem('dataExplorerDensity');
+    if (saved === 'compact' || saved === 'comfortable' || saved === 'detailed') return saved;
+    return 'comfortable';
+  });
+
+  const thPad = density === 'detailed' ? 'py-3' : density === 'comfortable' ? 'py-2' : 'py-1.5';
+  const tdPad = density === 'detailed' ? 'py-2.5' : density === 'comfortable' ? 'py-1.5' : 'py-1';
+  const tableTextSize = density === 'detailed' ? 'text-xs' : density === 'comfortable' ? 'text-[11px]' : 'text-[10px]';
 
   const [draggedCol, setDraggedCol] = useState<string | null>(null);
   const [bulkAssignExec, setBulkAssignExec] = useState<string>('');
+  const [newPresetName, setNewPresetName] = useState('');
+  const [isPresetPopoverOpen, setIsPresetPopoverOpen] = useState(false);
+  const [sortSearch, setSortSearch] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }[]>([]);
+
+  // Page & Items per page
+  const [page, setPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(() => {
+    const saved = localStorage.getItem('dataExplorerPageSize');
+    return saved ? Number(saved) : 50;
+  });
+
+  const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+  const [multiCaseModal, setMultiCaseModal] = useState<{ name: string; records: any[] } | null>(null);
+  const [columnSearch, setColumnSearch] = useState('');
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Saved Filter Presets
   const [savedViews, setSavedViews] = useState<any[]>(() => {
-    const saved = localStorage.getItem('dataExplorerSavedViews');
+    const saved = localStorage.getItem('dataExplorerSavedViews') || localStorage.getItem('dataExplorerSavedPresets');
     return saved ? JSON.parse(saved) : [];
   });
 
-
-  
-  
-  const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
-  const navigate = useNavigate();
-  const handleRowClick = (r: any) => {
-    sessionStorage.setItem('currentCaseList', JSON.stringify(filteredRecords.map(rec => rec.agreementid)));
-    navigate(`/customer/${r.agreementid}?${searchParams.toString()}`);
-  };
-  const [multiCaseModal, setMultiCaseModal] = useState<{name: string, records: any[]} | null>(null);
-
-  const [page, setPage] = useState(1);
-  const [sortSearch, setSortSearch] = useState('');
-  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'}[]>([]);
-
-  
-  const itemsPerPage = 50;
-
-    const allExecutives = useMemo(() => {
+  const allExecutives = useMemo(() => {
     return Array.from(new Set(records.map((r: any) => String(r.executive_name || r['Executive Name'] || '').trim()).filter(Boolean))).sort();
   }, [records]);
   
@@ -95,26 +110,6 @@ export default function DataExplorer() {
     return schema.filter(k => !STANDARD_KEYS.includes(k) && !k.startsWith('_'));
   }, [schema]);
 
-  
-  const [columnSearch, setColumnSearch] = useState('');
-  const tableContainerRef = useRef<HTMLDivElement>(null);
-  const scrollTable = (dir: 'left' | 'right') => {
-    if (tableContainerRef.current) {
-      tableContainerRef.current.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
-    }
-  };
-  const jumpToColumn = (colName: string) => {
-    const el = document.getElementById(`th-${colName}`);
-    if (el && tableContainerRef.current) {
-      // Get the relative position of the column within the container
-      const containerLeft = tableContainerRef.current.getBoundingClientRect().left;
-      const elLeft = el.getBoundingClientRect().left;
-      const scrollOffset = elLeft - containerLeft - 100; // offset slightly
-      tableContainerRef.current.scrollBy({ left: scrollOffset, behavior: 'smooth' });
-    }
-  };
-
-  
   const [visibleExtraColumns, setVisibleExtraColumns] = useState<string[]>(() => {
     const saved = localStorage.getItem('dataExplorerExtraColumns');
     return saved ? JSON.parse(saved) : null;
@@ -136,31 +131,44 @@ export default function DataExplorer() {
     });
   };
 
+  const scrollTable = (dir: 'left' | 'right') => {
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
+    }
+  };
 
+  const jumpToColumn = (colName: string) => {
+    const el = document.getElementById(`th-${colName}`);
+    if (el && tableContainerRef.current) {
+      const containerLeft = tableContainerRef.current.getBoundingClientRect().left;
+      const elLeft = el.getBoundingClientRect().left;
+      const scrollOffset = elLeft - containerLeft - 100;
+      tableContainerRef.current.scrollBy({ left: scrollOffset, behavior: 'smooth' });
+    }
+  };
+
+  // Synchronize URL query params
   useEffect(() => {
-    // Update URL when filters change to allow sharing links
     const params = new URLSearchParams();
     if (selectedState !== 'All') params.set('state', selectedState);
     if (selectedCity !== 'All') params.set('city', selectedCity);
     if (selectedBucket !== 'All') params.set('bucket', selectedBucket);
     if (selectedExecutive !== 'All') params.set('executive', selectedExecutive);
     if (selectedPaidStatus !== 'All') params.set('paid', selectedPaidStatus);
+    if (selectedAllocation !== 'All') params.set('allocated', selectedAllocation);
     if (searchQuery) params.set('q', searchQuery);
     if (minPos) params.set('minPos', minPos);
     if (maxPos) params.set('maxPos', maxPos);
     setSearchParams(params, { replace: false });
-    setPage(1); // Reset page on filter change
-  }, [selectedState, selectedCity, selectedBucket, selectedExecutive, selectedPaidStatus, searchQuery, minPos, maxPos, setSearchParams]);
+    setPage(1);
+  }, [selectedState, selectedCity, selectedBucket, selectedExecutive, selectedAllocation, selectedPaidStatus, searchQuery, minPos, maxPos, setSearchParams]);
 
   const baseRecords = useMemo(() => {
     if (isExecutive() && user) return records.filter((r: any) => r.executive_name === user.name);
     return records;
   }, [records, user, isExecutive]);
 
-  // Derived options for filters
-  const availableStates = useMemo(() => ['All', ...Array.from(new Set(baseRecords.map((r: any) => String(r.state || r.State || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort()], [baseRecords]);
-  const availableCities = useMemo(() => ['All', ...Array.from(new Set(baseRecords.map((r: any) => String(r.city || r.City || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort()], [baseRecords]);
-  const availableBuckets = useMemo(() => ['All', ...Array.from(new Set(baseRecords.map((r: any) => String(r.bom_bkt || 'UNKNOWN').trim()).filter(Boolean))).sort((a,b) => Number(a) - Number(b))], [baseRecords]);
+  // Address and Contact key resolver
   const { addressKey, contactKey } = useMemo(() => {
     return {
       addressKey: schema.find(k => k.toLowerCase() === 'mailingaddress') || schema.find(k => k.toLowerCase().includes('address') || k.toLowerCase() === 'add1' || k.toLowerCase().includes('add_1') || k.toLowerCase().includes('res_add')) || null,
@@ -168,16 +176,28 @@ export default function DataExplorer() {
     };
   }, [schema]);
 
+  const availableStates = useMemo(() => ['All', ...Array.from(new Set(baseRecords.map((r: any) => String(r.state || r.State || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort()], [baseRecords]);
+  
+  const availableCities = useMemo(() => {
+    const stateFiltered = selectedState === 'All' 
+      ? baseRecords 
+      : baseRecords.filter((r: any) => String(r.state || r.State || 'UNKNOWN').trim().toUpperCase() === selectedState);
+    return ['All', ...Array.from(new Set(stateFiltered.map((r: any) => String(r.city || r.City || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort()];
+  }, [baseRecords, selectedState]);
+
+  const availableBuckets = useMemo(() => ['All', ...Array.from(new Set(baseRecords.map((r: any) => String(r.bom_bkt || 'UNKNOWN').trim()).filter(Boolean))).sort((a,b) => Number(a) - Number(b))], [baseRecords]);
+
   const availableExecutives = useMemo(() => {
     const execs = new Set<string>();
     users.filter(u => u.role === 'EXECUTIVE').forEach(u => execs.add(u.name));
     baseRecords.forEach((r: any) => {
-        const e = String(r.executive_name || r['Executive Name'] || 'UNKNOWN').trim();
-        if (e && e !== 'UNKNOWN') execs.add(e);
+      const e = String(r.executive_name || r['Executive Name'] || 'UNKNOWN').trim();
+      if (e && e !== 'UNKNOWN') execs.add(e);
     });
     return ['All', ...Array.from(execs).sort()];
-}, [baseRecords, users]);
+  }, [baseRecords, users]);
 
+  // Customer Case Grouping Stats
   const customerStats = useMemo(() => {
     const stats: Record<string, { count: number, totalPos: number }> = {};
     baseRecords.forEach((r: any) => {
@@ -196,8 +216,7 @@ export default function DataExplorer() {
     return stats;
   }, [baseRecords, addressKey, contactKey]);
 
-  
-  // Computed Records
+  // Filter Pipeline
   const filteredRecords = useMemo(() => {
     return baseRecords.filter((r: any) => {
       if (exactCustomerFingerprint) {
@@ -219,9 +238,9 @@ export default function DataExplorer() {
       
       const c = calculateRow(r);
       const isPaid = c.mainPaid === 1;
-      
       if (selectedPaidStatus === 'Paid' && !isPaid) return false;
       if (selectedPaidStatus === 'Unpaid' && isPaid) return false;
+
       const pos = Number(r.principal_outstanding) || 0;
       if (minPos && pos < Number(minPos)) return false;
       if (maxPos && pos > Number(maxPos)) return false;
@@ -231,7 +250,6 @@ export default function DataExplorer() {
         const name = String(r.customer_name || r.CUSTOMERNAME || r['Customer Name'] || r.CUSTOMER_NAME || '').toLowerCase();
         const id = String(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || '').toLowerCase();
         if (!name.includes(q) && !id.includes(q)) return false;
-
       }
       
       for (const col of activeCustomFilters) {
@@ -247,8 +265,21 @@ export default function DataExplorer() {
     });
   }, [baseRecords, selectedState, selectedCity, selectedBucket, selectedExecutive, selectedAllocation, selectedPaidStatus, searchQuery, minPos, maxPos, activeCustomFilters, customFilterValues, exactCustomerFingerprint, addressKey, contactKey]);
 
-  
+  // Context Metrics
+  const contextMetrics = useMemo(() => {
+    let totalPos = 0;
+    let paidCount = 0;
+    let clearedAmount = 0;
+    filteredRecords.forEach((r: any) => {
+      totalPos += Number(r.principal_outstanding) || 0;
+      const c = calculateRow(r);
+      if (c.mainPaid === 1) paidCount += 1;
+      clearedAmount += c.totalCleared || (Number(r.dac ?? r.DAC) || 0);
+    });
+    return { totalPos, paidCount, clearedAmount };
+  }, [filteredRecords]);
 
+  // Sorting
   const sortedRecords = useMemo(() => {
     if (sortConfig.length === 0) return filteredRecords;
     return [...filteredRecords].sort((a: any, b: any) => {
@@ -272,11 +303,18 @@ export default function DataExplorer() {
     });
   }, [filteredRecords, sortConfig]);
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(sortedRecords.length / itemsPerPage));
   const paginatedRecords = useMemo(() => {
     return sortedRecords.slice((page - 1) * itemsPerPage, page * itemsPerPage);
   }, [sortedRecords, page, itemsPerPage]);
 
-    const handleExport = () => {
+  const handleRowClick = (r: any) => {
+    sessionStorage.setItem('currentCaseList', JSON.stringify(filteredRecords.map(rec => rec.agreementid)));
+    navigate(`/customer/${r.agreementid}?${searchParams.toString()}`);
+  };
+
+  const handleExport = React.useCallback(() => {
     if (filteredRecords.length === 0) return;
     const extraHeaders = allExtraKeys.filter(col => (visibleExtraColumns || []).includes(col));
     const headers = ['Agreement Number', 'Customer Name', 'State', 'City', 'Executive', 'Bucket', 'POS', 'EMI', 'DAC', 'ECS', 'Paid Status', ...extraHeaders];
@@ -303,15 +341,111 @@ export default function DataExplorer() {
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'Data_Explorer_Export.csv'; a.click();
-  };
-  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
+  }, [filteredRecords, allExtraKeys, visibleExtraColumns]);
 
-  
+  const saveCurrentFiltersAsPreset = (presetName: string) => {
+    if (!presetName.trim()) return;
+    const newPreset = {
+      id: Date.now().toString(),
+      name: presetName.trim(),
+      selectedState,
+      selectedCity,
+      selectedBucket,
+      selectedExecutive,
+      selectedAllocation,
+      selectedPaidStatus,
+      minPos,
+      maxPos,
+      searchQuery,
+      activeCustomFilters,
+      customFilterValues,
+      sortConfig,
+      density
+    };
+    const next = [...savedViews, newPreset];
+    setSavedViews(next);
+    localStorage.setItem('dataExplorerSavedViews', JSON.stringify(next));
+    localStorage.setItem('dataExplorerSavedPresets', JSON.stringify(next));
+    setNewPresetName('');
+    setIsPresetPopoverOpen(false);
+  };
+
+  const applyPreset = (preset: any) => {
+    if (preset.selectedState !== undefined) setSelectedState(preset.selectedState);
+    if (preset.selectedCity !== undefined) setSelectedCity(preset.selectedCity);
+    if (preset.selectedBucket !== undefined) setSelectedBucket(preset.selectedBucket);
+    if (preset.selectedExecutive !== undefined) setSelectedExecutive(preset.selectedExecutive);
+    if (preset.selectedAllocation !== undefined) setSelectedAllocation(preset.selectedAllocation);
+    if (preset.selectedPaidStatus !== undefined) setSelectedPaidStatus(preset.selectedPaidStatus);
+    if (preset.minPos !== undefined) setMinPos(preset.minPos);
+    if (preset.maxPos !== undefined) setMaxPos(preset.maxPos);
+    if (preset.searchQuery !== undefined) setSearchQuery(preset.searchQuery);
+    if (preset.activeCustomFilters !== undefined) setActiveCustomFilters(preset.activeCustomFilters);
+    if (preset.customFilterValues !== undefined) setCustomFilterValues(preset.customFilterValues);
+    if (preset.sortConfig !== undefined) setSortConfig(preset.sortConfig);
+    if (preset.density !== undefined && (preset.density === 'compact' || preset.density === 'comfortable' || preset.density === 'detailed')) {
+      setDensity(preset.density);
+      localStorage.setItem('dataExplorerDensity', preset.density);
+    }
+    setExactCustomerFingerprint(null);
+    setPage(1);
+  };
+
+  const resetAllFilters = () => {
+    setSelectedState('All');
+    setSelectedCity('All');
+    setSelectedBucket('All');
+    setSelectedExecutive('All');
+    setSelectedAllocation('All');
+    setSelectedPaidStatus('All');
+    setMinPos('');
+    setMaxPos('');
+    setSearchQuery('');
+    setActiveCustomFilters([]);
+    setCustomFilterValues({});
+    setSortConfig([]);
+    setExactCustomerFingerprint(null);
+    setPage(1);
+  };
+
+  // Keyboard Shortcuts (Ctrl+K: Search, Ctrl+E: Export, Ctrl+Shift+R: Reset)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        handleExport();
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        resetAllFilters();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleExport]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedState !== 'All') count++;
+    if (selectedCity !== 'All') count++;
+    if (selectedBucket !== 'All') count++;
+    if (selectedExecutive !== 'All') count++;
+    if (selectedAllocation !== 'All') count++;
+    if (selectedPaidStatus !== 'All') count++;
+    if (minPos || maxPos) count++;
+    if (searchQuery) count++;
+    count += activeCustomFilters.length;
+    return count;
+  }, [selectedState, selectedCity, selectedBucket, selectedExecutive, selectedAllocation, selectedPaidStatus, minPos, maxPos, searchQuery, activeCustomFilters]);
+
   if (isLoading) {
     return (
       <AppLayout>
         <div className="animate-pulse flex flex-col gap-4">
           <div className="h-10 w-48 bg-muted rounded-md mb-4" />
+          <div className="h-16 w-full bg-card border border-border rounded-xl" />
           <div className="h-20 w-full bg-card border border-border rounded-xl" />
           <div className="h-[500px] w-full bg-card border border-border rounded-xl" />
         </div>
@@ -321,160 +455,221 @@ export default function DataExplorer() {
 
   return (
     <AppLayout>
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* 1. Header Command Bar */}
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="font-sans text-xl font-extrabold uppercase tracking-wide flex items-center gap-2">
-            <Database className="h-6 w-6 text-primary" /> Data Explorer
+          <h1 className="font-heading text-xl font-bold text-foreground flex items-center gap-2">
+            <Database className="h-5 w-5 text-primary" /> Data Explorer
           </h1>
-          <p className="font-sans text-xs text-muted-foreground mt-1">Raw record inspection and drill-down analysis</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Real-time portfolio inspection, multi-criteria filtering, and customer drill-down
+          </p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold text-sm">
-            {filteredRecords.length.toLocaleString()} <span className="font-medium opacity-80 text-xs uppercase tracking-wider">Cases</span>
-          </div>
-          <div className="bg-info/10 text-info px-4 py-2 rounded-lg font-bold text-sm">
-            {fmtCur(filteredRecords.reduce((sum, r) => sum + (Number(r.principal_outstanding) || 0), 0))} <span className="font-medium opacity-80 text-xs uppercase tracking-wider">Total POS</span>
+
+        {/* Global Dataset KPIs */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="bg-muted/40 border border-border px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Dataset:</span>
+            <span className="font-mono font-bold text-foreground">{records.length.toLocaleString()} cases</span>
           </div>
         </div>
       </div>
 
-      {/* Primary Bucket Filter Tabs */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground mr-2">Primary Bucket:</span>
-        {availableBuckets.map((b, i) => (
-          <button
-            key={b}
-            onClick={() => setSelectedBucket(b)}
-            className={`px-4 py-1.5 font-sans text-[11px] font-bold uppercase tracking-wider rounded-full transition-all border ${
-              selectedBucket === b 
-                ? 'bg-primary text-primary-foreground border-primary shadow-sm scale-105' 
-                : 'bg-card text-muted-foreground border-border hover:bg-muted'
-            }`}
-          >
-            {b === 'All' ? 'All Buckets' : `Bucket ${b}`}
-          </button>
-        ))}
-      </div>
+      {/* 2. Filter Strip */}
+      <FilterStrip
+        availableStates={availableStates}
+        selectedState={selectedState}
+        onStateChange={setSelectedState}
+        availableCities={availableCities}
+        selectedCity={selectedCity}
+        onCityChange={setSelectedCity}
+        availableBuckets={availableBuckets}
+        selectedBucket={selectedBucket}
+        onBucketChange={setSelectedBucket}
+        availableExecutives={availableExecutives}
+        selectedExecutive={selectedExecutive}
+        onExecutiveChange={setSelectedExecutive}
+        selectedAllocation={selectedAllocation}
+        onAllocationChange={setSelectedAllocation}
+        selectedPaidStatus={selectedPaidStatus}
+        onPaidStatusChange={setSelectedPaidStatus}
+        minPos={minPos}
+        maxPos={maxPos}
+        onPosRangeChange={(min, max) => {
+          setMinPos(min);
+          setMaxPos(max);
+        }}
+        schema={schema}
+        standardKeys={STANDARD_KEYS}
+        activeCustomFilters={activeCustomFilters}
+        customFilterValues={customFilterValues}
+        onAddCustomFilter={(col) => {
+          if (!activeCustomFilters.includes(col)) {
+            setActiveCustomFilters(prev => [...prev, col]);
+          }
+        }}
+        onRemoveCustomFilter={(col) => {
+          setActiveCustomFilters(prev => prev.filter(c => c !== col));
+          const next = { ...customFilterValues };
+          delete next[col];
+          setCustomFilterValues(next);
+        }}
+        onCustomFilterValueChange={(col, val) => {
+          setCustomFilterValues(prev => ({ ...prev, [col]: val }));
+        }}
+        baseRecords={baseRecords}
+        onClearSecondary={resetAllFilters}
+        activeFilterCount={activeFilterCount}
+      />
 
-      {/* Consolidated Secondary Filters */}
-      <div className="bg-card border border-border rounded-lg shadow-sm p-3 mb-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Paid Status</span>
-            <select value={selectedPaidStatus} onChange={e => setSelectedPaidStatus(e.target.value)} className="h-8 rounded bg-muted/50 border border-border px-2 text-xs font-medium outline-none focus:border-primary">
-              <option value="All">All Cases</option>
-              <option value="Paid">Main Paid Only</option>
-              <option value="Unpaid">Unpaid Only</option>
-            </select>
+      {/* 3. Context Strip (Signature Live Aggregate Strip with Export CSV) */}
+      <ContextStrip
+        totalRecords={filteredRecords.length}
+        totalPos={contextMetrics.totalPos}
+        paidCount={contextMetrics.paidCount}
+        clearedAmount={contextMetrics.clearedAmount}
+        onExport={handleExport}
+      />
+
+      {/* 4. Toolbar: Presets & Controls Bar */}
+      <div className="bg-card border border-border rounded-xl p-2.5 mb-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xs">
+        {/* Left: Saved Presets & Active Sorts */}
+        <div className="flex flex-wrap items-center gap-2 flex-1 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground mr-1 shrink-0">
+            <Bookmark className="h-3.5 w-3.5 text-primary" />
+            <span className="uppercase text-[10px] tracking-wider">Presets:</span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">State</span>
-            <select value={selectedState} onChange={e => setSelectedState(e.target.value)} className="h-8 rounded bg-muted/50 border border-border px-2 text-xs font-medium outline-none focus:border-primary">
-              {availableStates.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">City</span>
-            <select value={selectedCity} onChange={e => setSelectedCity(e.target.value)} className="h-8 rounded bg-muted/50 border border-border px-2 text-xs font-medium outline-none focus:border-primary">
-              {availableCities.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Allocation</span>
-            <select value={selectedAllocation} onChange={e => setSelectedAllocation(e.target.value)} className="h-8 rounded bg-muted/50 border border-border px-2 text-xs font-medium outline-none focus:border-primary">
-              <option value="All">All</option>
-              <option value="Allocated">Allocated</option>
-              <option value="Unallocated">Unallocated</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Executive</span>
-            <select value={selectedExecutive} onChange={e => setSelectedExecutive(e.target.value)} className="h-8 rounded bg-muted/50 border border-border px-2 text-xs font-medium outline-none focus:border-primary">
-              {availableExecutives.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          
-          {activeCustomFilters.map(col => {
-            // Compute unique options for this column
-            const options = Array.from(new Set(baseRecords.map((r: any) => String(r[col] || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort();
-            return (
-              <div key={col} className="flex items-center gap-2 shrink-0 bg-muted/30 px-2 py-1 rounded border border-border">
-                <span className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
-                  {col}
-                  <button onClick={() => {
-                    setActiveCustomFilters(prev => prev.filter(c => c !== col));
-                    setCustomFilterValues(prev => { const n = {...prev}; delete n[col]; return n; });
-                  }} className="hover:text-destructive transition-colors"><X className="h-3 w-3" /></button>
-                </span>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className="h-8 min-w-[120px] max-w-[150px] justify-between px-2 flex items-center text-xs font-medium bg-muted/50 border border-border rounded hover:bg-muted transition-colors truncate">
-                      <span className="truncate">{customFilterValues[col] || 'All'}</span>
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-56 p-2" align="start">
-                    <div className="relative mb-2">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                      <input 
-                        type="text" 
-                        placeholder="Search values..." 
-                        className="w-full pl-6 pr-2 py-1.5 text-xs border border-border rounded bg-muted/20 outline-none focus:border-primary transition-colors"
-                        value={columnFilterSearches[col] || ''}
-                        onChange={e => setColumnFilterSearches(prev => ({...prev, [col]: e.target.value}))}
-                      />
-                    </div>
-                    <div className="max-h-48 overflow-y-auto no-scrollbar flex flex-col gap-1">
-                      <button 
-                        onClick={() => setCustomFilterValues(prev => ({...prev, [col]: 'All'}))}
-                        className={`text-left px-2 py-2 shrink-0 text-xs rounded hover:bg-muted transition-colors ${!customFilterValues[col] || customFilterValues[col] === 'All' ? 'bg-primary/10 text-primary font-bold' : 'text-foreground'}`}
-                      >
-                        All
-                      </button>
-                      {options.filter(o => o.toLowerCase().includes((columnFilterSearches[col] || '').toLowerCase())).map(o => (
-                        <button 
-                          key={o}
-                          onClick={() => setCustomFilterValues(prev => ({...prev, [col]: o}))}
-                          className={`text-left px-2 py-2 shrink-0 text-xs rounded hover:bg-muted transition-colors truncate ${customFilterValues[col] === o ? 'bg-primary/10 text-primary font-bold' : 'text-foreground'}`}
-                        >
-                          {o}
-                        </button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+
+          {/* User Saved Presets */}
+          {savedViews.length === 0 ? (
+            <span className="text-xs text-muted-foreground italic">
+              No saved presets. Apply filters and save for 1-click access.
+            </span>
+          ) : (
+            savedViews.map((view, i) => (
+              <div 
+                key={view.id || i} 
+                className="flex items-center bg-muted/40 border border-border rounded-lg pl-2 pr-1 py-0.5 gap-1.5 shrink-0 hover:border-primary/50 transition-colors"
+              >
+                <button 
+                  className="text-xs font-semibold text-foreground hover:text-primary truncate max-w-[130px]" 
+                  title={`Apply preset: ${view.name}`} 
+                  onClick={() => applyPreset(view)}
+                >
+                  {view.name}
+                </button>
+                <button 
+                  className="text-muted-foreground hover:text-destructive p-0.5 rounded transition-colors" 
+                  title="Delete preset"
+                  onClick={() => {
+                    const next = [...savedViews];
+                    next.splice(i, 1);
+                    setSavedViews(next);
+                    localStorage.setItem('dataExplorerSavedViews', JSON.stringify(next));
+                    localStorage.setItem('dataExplorerSavedPresets', JSON.stringify(next));
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </button>
               </div>
-            );
-          })}
-          
-          
-          <Popover>
+            ))
+          )}
+
+          {/* Save Preset Button */}
+          <Popover open={isPresetPopoverOpen} onOpenChange={setIsPresetPopoverOpen}>
             <PopoverTrigger asChild>
-              <button className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all border border-dashed border-border hover:bg-muted text-muted-foreground">
-                <Plus className="h-3 w-3" /> Add Sort
+              <button className="flex items-center gap-1 px-2 py-1 text-xs font-bold bg-primary/10 text-primary border border-primary/25 rounded-lg hover:bg-primary/20 transition-colors shrink-0">
+                <Plus className="h-3 w-3" /> Save Preset
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-56 p-3" align="start">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Sort By Column</h4>
+            <PopoverContent className="w-72 p-3" align="start">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-foreground mb-1.5 flex items-center gap-1.5">
+                <Bookmark className="h-3.5 w-3.5 text-primary" /> Save Filter Combination
+              </h4>
+              <p className="text-[11px] text-muted-foreground mb-3">
+                Save active bucket, state, city, executive, and POS boundaries for 1-click access.
+              </p>
+              <div className="space-y-2.5">
+                <input
+                  type="text"
+                  placeholder="e.g. Critical BKT-2 Cases"
+                  value={newPresetName}
+                  onChange={(e) => setNewPresetName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveCurrentFiltersAsPreset(newPresetName);
+                  }}
+                  className="w-full px-2.5 py-1.5 text-xs border border-border rounded-md bg-muted/30 outline-none focus:border-primary"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-1.5">
+                  <button
+                    onClick={() => setIsPresetPopoverOpen(false)}
+                    className="px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground rounded"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={!newPresetName.trim()}
+                    onClick={() => saveCurrentFiltersAsPreset(newPresetName)}
+                    className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Reset All Filters Button */}
+          <button
+            onClick={resetAllFilters}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted transition-colors shrink-0"
+            title="Reset all filters (Ctrl+Shift+R)"
+          >
+            <RotateCcw className="h-3 w-3" /> Reset
+          </button>
+        </div>
+
+        {/* Right Controls: Sort, Density, Columns, Search */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0 border-t lg:border-t-0 pt-2 lg:pt-0">
+          {/* Active Sort Chips */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className={`h-8 px-2.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                sortConfig.length > 0
+                  ? 'bg-primary/10 border-primary text-primary'
+                  : 'bg-muted/40 border-border text-foreground hover:bg-muted/70'
+              }`}>
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                <span>Sort {sortConfig.length > 0 ? `(${sortConfig.length})` : ''}</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3" align="end">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Sort by Column</h4>
               <div className="relative mb-2">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                 <input 
                   type="text" 
-                  placeholder="Search columns..." 
-                  className="w-full pl-6 pr-2 py-1 text-xs border border-border rounded bg-muted/20 outline-none focus:border-primary transition-colors"
+                  placeholder="Search column..." 
+                  className="w-full pl-6 pr-2 py-1 text-xs border border-border rounded bg-muted/20 outline-none focus:border-primary"
                   value={sortSearch}
                   onChange={e => setSortSearch(e.target.value)}
                 />
               </div>
-              <ScrollArea className="h-48 pr-2">
+              <ScrollArea className="h-48 pr-1">
                 <div className="flex flex-col gap-1">
                   {schema.filter(col => col.toLowerCase().includes(sortSearch.toLowerCase())).map(col => (
-                    <div key={col} className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded transition-colors cursor-pointer" onClick={() => {
-                      setSortConfig(prev => {
-                        const exists = prev.find(s => s.key === col);
-                        if (exists) return prev.filter(s => s.key !== col);
-                        return [...prev, { key: col, direction: 'asc' }];
-                      });
-                    }}>
+                    <div 
+                      key={col} 
+                      className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded transition-colors cursor-pointer" 
+                      onClick={() => {
+                        setSortConfig(prev => {
+                          const exists = prev.find(s => s.key === col);
+                          if (exists) return prev.filter(s => s.key !== col);
+                          return [...prev, { key: col, direction: 'asc' }];
+                        });
+                      }}
+                    >
                       <Checkbox className="pointer-events-none" checked={!!sortConfig.find(s => s.key === col)} />
                       <span className="text-xs truncate flex-1">{col}</span>
                     </div>
@@ -483,325 +678,295 @@ export default function DataExplorer() {
               </ScrollArea>
             </PopoverContent>
           </Popover>
+
           {sortConfig.map(sort => (
-            <div key={sort.key} className="flex items-center gap-1 bg-muted/50 border border-border px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider text-foreground">
-              Sort: {sort.key}
-              <button onClick={() => setSortConfig(prev => prev.map(s => s.key === sort.key ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' } : s))} className="ml-1 text-muted-foreground hover:text-foreground">
-                {sort.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+            <div key={sort.key} className="flex items-center gap-1 bg-muted/60 border border-border px-2 py-1 rounded-lg text-xs font-medium text-foreground">
+              <span className="truncate max-w-[80px]">{sort.key}</span>
+              <button 
+                onClick={() => setSortConfig(prev => prev.map(s => s.key === sort.key ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' } : s))} 
+                className="text-muted-foreground hover:text-foreground p-0.5"
+              >
+                {sort.direction === 'asc' ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />}
               </button>
-              <button onClick={() => setSortConfig(prev => prev.filter(s => s.key !== sort.key))} className="ml-1 text-muted-foreground hover:text-destructive">
+              <button 
+                onClick={() => setSortConfig(prev => prev.filter(s => s.key !== sort.key))} 
+                className="text-muted-foreground hover:text-destructive p-0.5"
+              >
                 <X className="h-3 w-3" />
               </button>
             </div>
           ))}
-<Popover>
+
+          {/* Density Switcher */}
+          <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border">
+            <button
+              onClick={() => { setDensity('compact'); localStorage.setItem('dataExplorerDensity', 'compact'); }}
+              className={`flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded transition-all ${
+                density === 'compact' ? 'bg-card text-primary shadow-xs border border-border/50' : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title="Compact: Maximum rows visible"
+            >
+              <AlignJustify className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Compact</span>
+            </button>
+            <button
+              onClick={() => { setDensity('comfortable'); localStorage.setItem('dataExplorerDensity', 'comfortable'); }}
+              className={`flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded transition-all ${
+                density === 'comfortable' ? 'bg-card text-primary shadow-xs border border-border/50' : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title="Comfortable: Standard view"
+            >
+              <Rows className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Comfortable</span>
+            </button>
+            <button
+              onClick={() => { setDensity('detailed'); localStorage.setItem('dataExplorerDensity', 'detailed'); }}
+              className={`flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded transition-all ${
+                density === 'detailed' ? 'bg-card text-primary shadow-xs border border-border/50' : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title="Detailed: Shows breakdown tags, POS recovery %, and rich indicators"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Detailed</span>
+            </button>
+          </div>
+
+          {/* Scroll & Jump Table Navigation */}
+          <div className="flex items-center gap-1">
+            <button onClick={() => scrollTable('left')} className="h-8 w-7 border border-border rounded-lg bg-muted/40 hover:bg-muted text-muted-foreground flex items-center justify-center transition-colors" title="Scroll Left">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button onClick={() => scrollTable('right')} className="h-8 w-7 border border-border rounded-lg bg-muted/40 hover:bg-muted text-muted-foreground flex items-center justify-center transition-colors" title="Scroll Right">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="relative">
+            <select 
+              onChange={(e) => { if(e.target.value) jumpToColumn(e.target.value); e.target.value = ""; }} 
+              className="h-8 w-24 rounded-lg bg-muted/40 border border-border px-2 text-xs font-medium outline-none focus:border-primary"
+            >
+              <option value="">Jump...</option>
+              {(allExtraKeys.filter(c => (visibleExtraColumns || []).includes(c))).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* Columns Selector */}
+          <Popover>
             <PopoverTrigger asChild>
-              <button className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all border border-dashed border-border hover:bg-muted text-muted-foreground">
-                <Plus className="h-3 w-3" /> Add Filter
+              <button className="h-8 px-2.5 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                <Columns className="h-3.5 w-3.5" />
+                <span>Cols</span>
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 p-3" align="start">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Select Column</h4>
-              <div className="relative mb-2">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                <input 
-                  type="text" 
-                  placeholder="Search columns..." 
-                  className="w-full pl-6 pr-2 py-1 text-xs border border-border rounded bg-muted/20 outline-none focus:border-primary transition-colors"
-                  value={customFilterSearch}
-                  onChange={e => setCustomFilterSearch(e.target.value)}
-                />
+            <PopoverContent className="w-64 p-3" align="end">
+              <div className="mb-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <input 
+                    type="text" 
+                    placeholder="Search columns..." 
+                    className="w-full pl-7 pr-2 py-1 text-xs border border-border rounded bg-muted/20 outline-none focus:border-primary"
+                    value={columnSearch}
+                    onChange={e => setColumnSearch(e.target.value)}
+                  />
+                </div>
               </div>
-              <div className="max-h-48 overflow-y-auto pr-1 no-scrollbar flex flex-col gap-1">
-                {schema
-                  .filter(col => !STANDARD_KEYS.includes(col) && !col.startsWith('_') )
-                  .filter(col => col.toLowerCase().includes(customFilterSearch.toLowerCase()))
-                  .map(col => (
-                    <div key={col} className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted rounded transition-colors cursor-pointer" onClick={() => {
-                      if (activeCustomFilters.includes(col)) {
-                        setActiveCustomFilters(prev => prev.filter(c => c !== col));
-                        const newVals = { ...customFilterValues };
-                        delete newVals[col];
-                        setCustomFilterValues(newVals);
-                      } else {
-                        setActiveCustomFilters(prev => [...prev, col]);
-                      }
-                    }}>
-                      <Checkbox className="pointer-events-none" checked={activeCustomFilters.includes(col)} />
-                      <span className="text-xs truncate flex-1">{col}</span>
-                    </div>
-                ))}
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra Columns</h4>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => { setVisibleExtraColumns(allExtraKeys); localStorage.setItem('dataExplorerExtraColumns', JSON.stringify(allExtraKeys)); }}
+                    className="text-[10px] uppercase text-primary font-bold hover:underline"
+                  >
+                    All
+                  </button>
+                  <button 
+                    onClick={() => { setVisibleExtraColumns([]); localStorage.setItem('dataExplorerExtraColumns', JSON.stringify([])); }}
+                    className="text-[10px] uppercase text-muted-foreground hover:underline"
+                  >
+                    None
+                  </button>
+                </div>
               </div>
+              <ScrollArea className="h-56 pr-2">
+                <div className="space-y-1.5">
+                  {allExtraKeys.length === 0 ? (
+                    <div className="text-xs text-muted-foreground italic">No extra columns</div>
+                  ) : (
+                    allExtraKeys.filter(col => col.toLowerCase().includes(columnSearch.toLowerCase())).map(col => (
+                      <div key={col} className="flex items-center gap-2">
+                        <Checkbox 
+                          id={`col-${col}`} 
+                          checked={(visibleExtraColumns || []).includes(col)}
+                          onCheckedChange={() => toggleExtraColumn(col)}
+                        />
+                        <label htmlFor={`col-${col}`} className="text-xs font-medium leading-none cursor-pointer select-none">
+                          {col}
+                        </label>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
             </PopoverContent>
           </Popover>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0 lg:ml-auto">
-    
-            <button 
-              onClick={() => {
-                setSelectedState('All'); setSelectedCity('All'); setSelectedExecutive('All'); setSelectedPaidStatus('All'); setSearchQuery(''); setCustomFilterValues({}); setActiveCustomFilters([]); setExactCustomerFingerprint(null);
-              }}
-              className="text-[11px] text-muted-foreground hover:text-foreground font-semibold uppercase tracking-wider underline underline-offset-2 transition-colors"
-            >
-              Clear Secondary
-            </button>
-    <div className="flex flex-wrap items-center border-l border-border pl-4 gap-2">
-            
-            <div className="flex items-center gap-1 mr-2">
-              <button onClick={() => scrollTable('left')} className="h-8 px-2 border border-border rounded bg-muted/50 hover:bg-muted text-muted-foreground flex items-center justify-center transition-colors" title="Scroll Left">
-                <span className="text-[14px] leading-none">←</span>
+          {/* Quick Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input 
+              ref={searchInputRef}
+              type="text" 
+              placeholder="Search (Ctrl+K)..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="h-8 w-44 rounded-lg bg-muted/40 border border-border pl-8 pr-2 text-xs font-medium outline-none focus:border-primary transition-colors"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
               </button>
-              <button onClick={() => scrollTable('right')} className="h-8 px-2 border border-border rounded bg-muted/50 hover:bg-muted text-muted-foreground flex items-center justify-center transition-colors" title="Scroll Right">
-                <span className="text-[14px] leading-none">→</span>
-              </button>
-            </div>
-            
-            <div className="flex items-center gap-2 mr-2">
-              <span className="text-[10px] font-bold uppercase text-muted-foreground">Jump</span>
-              <select onChange={(e) => { if(e.target.value) jumpToColumn(e.target.value); e.target.value = ""; }} className="h-8 w-32 rounded bg-muted/50 border border-border px-2 text-xs font-medium outline-none focus:border-primary">
-                <option value="">Select Col...</option>
-                {(allExtraKeys.filter(c => (visibleExtraColumns || []).includes(c))).map((c, i) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all bg-card border border-border hover:bg-muted text-muted-foreground">
-                  <Columns className="h-4 w-4" /> Columns
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-3" align="end">
-                
-                <div className="mb-3">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <input 
-                      type="text" 
-                      placeholder="Search columns..." 
-                      className="w-full pl-7 pr-2 py-1.5 text-xs border border-border rounded bg-muted/20 outline-none focus:border-primary transition-colors"
-                      value={columnSearch}
-                      onChange={e => setColumnSearch(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra Columns</h4>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => { setVisibleExtraColumns(allExtraKeys); localStorage.setItem('dataExplorerExtraColumns', JSON.stringify(allExtraKeys)); }}
-                      className="text-[10px] uppercase text-primary font-bold hover:underline"
-                    >
-                      All
-                    </button>
-                    <button 
-                      onClick={() => { setVisibleExtraColumns([]); localStorage.setItem('dataExplorerExtraColumns', JSON.stringify([])); }}
-                      className="text-[10px] uppercase text-muted-foreground hover:underline"
-                    >
-                      None
-                    </button>
-                  </div>
-                </div>
-                <ScrollArea className="h-64 pr-4">
-                  <div className="space-y-2">
-                    {allExtraKeys.length === 0 ? (
-                      <div className="text-xs text-muted-foreground italic">No extra columns found</div>
-                    ) : (
-                      allExtraKeys.filter(col => col.toLowerCase().includes(columnSearch.toLowerCase())).map(col => (
-                        <div key={col} className="flex items-center gap-2">
-                          <Checkbox 
-                            id={`col-${col}`} 
-                            checked={(visibleExtraColumns || []).includes(col)}
-                            onCheckedChange={() => toggleExtraColumn(col)}
-                          />
-                          <label htmlFor={`col-${col}`} className="text-xs font-medium leading-none cursor-pointer select-none">
-                            {col}
-                          </label>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
-              </PopoverContent>
-            </Popover>
-
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input 
-                type="text" 
-                placeholder="Search Name or Aggr No..." 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="h-8 w-48 rounded bg-muted/50 border border-border pl-8 pr-2 text-xs font-medium outline-none focus:border-primary"
-              />
-            </div>
-          </div>
-
+            )}
           </div>
         </div>
       </div>
 
-      
-        {/* Saved Views Bar */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-           {savedViews.map((view, i) => (
-              <div key={i} className="flex items-center bg-muted/30 border border-border rounded-md px-2 py-1 gap-2">
-                 <button className="text-xs font-bold text-foreground hover:text-primary truncate max-w-[120px]" title={view.name} onClick={() => {
-                    if (view.selectedState) setSelectedState(view.selectedState);
-                    if (view.selectedCity) setSelectedCity(view.selectedCity);
-                    if (view.selectedBucket) setSelectedBucket(view.selectedBucket);
-                    if (view.selectedExecutive) setSelectedExecutive(view.selectedExecutive);
-                    if (view.selectedAllocation) setSelectedAllocation(view.selectedAllocation);
-                    if (view.selectedPaidStatus) setSelectedPaidStatus(view.selectedPaidStatus);
-                    if (view.minPos) setMinPos(view.minPos);
-                    if (view.maxPos) setMaxPos(view.maxPos);
-                    if (view.activeCustomFilters) setActiveCustomFilters(view.activeCustomFilters);
-                    if (view.customFilterValues) setCustomFilterValues(view.customFilterValues);
-                    if (view.sortConfig) setSortConfig(view.sortConfig);
-                 }}>
-                    {view.name}
-                 </button>
-                 <button className="text-muted-foreground hover:text-destructive" onClick={() => {
-                    const next = [...savedViews];
-                    next.splice(i, 1);
-                    setSavedViews(next);
-                    localStorage.setItem('dataExplorerSavedViews', JSON.stringify(next));
-                 }}>
-                    <X className="h-3 w-3" />
-                 </button>
-              </div>
-           ))}
-           <button className="text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 border border-dashed border-border rounded-md px-2 py-1" onClick={() => {
-              const name = window.prompt("Enter a name for this saved view:");
-              if (!name) return;
-              const newView = {
-                 name,
-                 selectedState, selectedCity, selectedBucket, selectedExecutive,
-                 selectedAllocation, selectedPaidStatus, minPos, maxPos,
-                 activeCustomFilters, customFilterValues, sortConfig
-              };
-              const next = [...savedViews, newView];
-              setSavedViews(next);
-              localStorage.setItem('dataExplorerSavedViews', JSON.stringify(next));
-           }}>
-              <Save className="h-3 w-3" /> Save Current View
-           </button>
-        </div>
-
-        {selectedCases.size > 0 && (
-          <div className="bg-primary/5 border border-primary/20 p-3 mb-4 rounded-xl flex flex-wrap items-center gap-3 animate-in slide-in-from-top-2">
-            <div className="flex items-center gap-2 text-primary font-bold text-sm">
-              <CheckCircle2 className="h-5 w-5" />
-              {selectedCases.size} cases selected
-            </div>
-            <div className="h-6 w-px bg-primary/20 mx-2"></div>
-            <select 
-              className="h-9 px-3 rounded-md border border-border bg-card text-sm outline-none focus:border-primary"
-              value={bulkAssignExec}
-              onChange={e => setBulkAssignExec(e.target.value)}
-            >
-              <option value="">-- Select Executive --</option>
-              {allExecutives.map(e => <option key={e} value={e}>{e}</option>)}
-            </select>
-            <button 
-              className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider rounded-md hover:bg-primary/90 disabled:opacity-50"
-              disabled={!bulkAssignExec}
-              onClick={async () => {
-                 const updates = Array.from(selectedCases).map(id => ({ agreementid: id, field: 'executive_name', value: bulkAssignExec }));
-                 await bulkUpdateRecords(updates, authUser?.name || "System");
-                 setSelectedCases(new Set());
-                 setBulkAssignExec('');
-              }}
-            >
-              Assign Selected
-            </button>
-            <button 
-              className="ml-auto text-xs font-medium text-muted-foreground hover:text-foreground"
-              onClick={() => setSelectedCases(new Set())}
-            >
-              Clear Selection
-            </button>
+      {/* 5. Bulk Assign Action Floating Strip */}
+      {selectedCases.size > 0 && (
+        <div className="bg-primary/10 border border-primary/30 p-2.5 mb-3 rounded-xl flex flex-wrap items-center gap-3 animate-in slide-in-from-top-2 shadow-sm">
+          <div className="flex items-center gap-1.5 text-primary font-bold text-xs">
+            <CheckCircle2 className="h-4 w-4" />
+            <span>{selectedCases.size} cases selected</span>
           </div>
-        )}
-        
-<div className="bg-card border border-border rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.05)] overflow-hidden">
-        <div className="overflow-auto scrollbar-thin max-h-[calc(100vh-380px)] min-h-[400px]" ref={tableContainerRef}>
-          <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead className="sticky top-0 z-20 bg-muted/95 backdrop-blur shadow-sm">
-              <tr className="bg-muted/30 border-b border-border">
-                <th className={`sticky left-0 top-0 z-30 bg-muted border-r border-border px-2 ${thPad} w-10`}>
-        <Checkbox 
-          checked={paginatedRecords.length > 0 && paginatedRecords.every((r:any) => selectedCases.has(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID))}
-          onCheckedChange={(c) => {
-            if (c) {
-                const all = new Set(selectedCases);
-                paginatedRecords.forEach((r:any) => all.add(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID));
-                setSelectedCases(all);
-            } else {
-                const remaining = new Set(selectedCases);
-                paginatedRecords.forEach((r:any) => remaining.delete(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID));
-                setSelectedCases(remaining);
-            }
-          }}
-        />
-     </th>
-     <th className={`sticky left-10 top-0 z-30 bg-muted border-r border-border px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>Aggr No</th>
-                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>Name</th>
-                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>Bucket</th>
-                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>State</th>
-                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>City</th>
-                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>Executive</th>
-                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>POS</th>
-                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>EMI</th>
-                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>ECS</th>
-                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>DAC</th>
-                <th className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>Status</th>
+          <div className="h-5 w-px bg-primary/20"></div>
+          <select 
+            className="h-8 px-2.5 rounded-lg border border-border bg-card text-xs font-semibold outline-none focus:border-primary"
+            value={bulkAssignExec}
+            onChange={e => setBulkAssignExec(e.target.value)}
+          >
+            <option value="">-- Select Executive --</option>
+            {allExecutives.map(e => <option key={e} value={e}>{e}</option>)}
+          </select>
+          <button 
+            className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            disabled={!bulkAssignExec}
+            onClick={async () => {
+              const updates = Array.from(selectedCases).map(id => ({ agreementid: id, field: 'executive_name', value: bulkAssignExec }));
+              await bulkUpdateRecords(updates, user?.name || "System");
+              setSelectedCases(new Set());
+              setBulkAssignExec('');
+            }}
+          >
+            Assign Selected
+          </button>
+          <button 
+            className="ml-auto text-xs font-semibold text-muted-foreground hover:text-foreground"
+            onClick={() => setSelectedCases(new Set())}
+          >
+            Clear Selection
+          </button>
+        </div>
+      )}
 
+      {/* 6. Main Data Grid */}
+      <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+        <div className="overflow-auto scrollbar-thin max-h-[calc(100vh-340px)] min-h-[420px]" ref={tableContainerRef}>
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead className="sticky top-0 z-20 bg-muted/95 backdrop-blur border-b border-border shadow-xs">
+              <tr>
+                {/* 3 Frozen Columns */}
+                <th className={`sticky left-0 top-0 z-30 bg-muted border-r border-border px-2.5 ${thPad} w-10`}>
+                  <Checkbox 
+                    checked={paginatedRecords.length > 0 && paginatedRecords.every((r:any) => selectedCases.has(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID))}
+                    onCheckedChange={(c) => {
+                      if (c) {
+                        const all = new Set(selectedCases);
+                        paginatedRecords.forEach((r:any) => all.add(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID));
+                        setSelectedCases(all);
+                      } else {
+                        const remaining = new Set(selectedCases);
+                        paginatedRecords.forEach((r:any) => remaining.delete(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID));
+                        setSelectedCases(remaining);
+                      }
+                    }}
+                  />
+                </th>
+                <th className={`sticky left-10 top-0 z-30 bg-muted border-r border-border px-3 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>
+                  Aggr No
+                </th>
+                <th className={`sticky left-[142px] top-0 z-30 bg-muted border-r border-border px-3 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold min-w-[200px]`}>
+                  Customer Name
+                </th>
+
+                {/* Standard Columns */}
+                <th className={`px-2.5 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>Bucket</th>
+                <th className={`px-2.5 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>State</th>
+                <th className={`px-2.5 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>City</th>
+                <th className={`px-2.5 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold`}>Executive</th>
+                <th className={`px-3 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>POS</th>
+                <th className={`px-3 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>EMI</th>
+                <th className={`px-3 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>ECS</th>
+                <th className={`px-3 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>DAC</th>
+                <th className={`px-3 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right`}>Status</th>
+
+                {/* Extra Columns with Drag-to-Reorder */}
                 {(visibleExtraColumns || []).filter(col => allExtraKeys.includes(col)).map(col => (
                   <th 
                     key={col} 
                     id={`th-${col}`} 
                     draggable
                     onDragStart={(e) => {
-                        setDraggedCol(col);
-                        e.dataTransfer.effectAllowed = 'move';
+                      setDraggedCol(col);
+                      e.dataTransfer.effectAllowed = 'move';
                     }}
                     onDragOver={(e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
                     }}
                     onDrop={(e) => {
-                        e.preventDefault();
-                        if (draggedCol && draggedCol !== col) {
-                            setVisibleExtraColumns(prev => {
-                                const next = [...(prev || [])];
-                                const fromIdx = next.indexOf(draggedCol);
-                                const toIdx = next.indexOf(col);
-                                if (fromIdx !== -1 && toIdx !== -1) {
-                                    next.splice(fromIdx, 1);
-                                    next.splice(toIdx, 0, draggedCol);
-                                    localStorage.setItem('dataExplorerExtraColumns', JSON.stringify(next));
-                                }
-                                return next;
-                            });
-                        }
-                        setDraggedCol(null);
+                      e.preventDefault();
+                      if (draggedCol && draggedCol !== col) {
+                        setVisibleExtraColumns(prev => {
+                          const next = [...(prev || [])];
+                          const fromIdx = next.indexOf(draggedCol);
+                          const toIdx = next.indexOf(col);
+                          if (fromIdx !== -1 && toIdx !== -1) {
+                            next.splice(fromIdx, 1);
+                            next.splice(toIdx, 0, draggedCol);
+                            localStorage.setItem('dataExplorerExtraColumns', JSON.stringify(next));
+                          }
+                          return next;
+                        });
+                      }
+                      setDraggedCol(null);
                     }}
                     onDragEnd={() => setDraggedCol(null)}
-                    className={`px-2 ${thPad} font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold cursor-move ${draggedCol === col ? 'opacity-50' : ''}`}
-                    title="Drag to reorder"
+                    className={`px-3 ${thPad} text-[10px] uppercase tracking-wider text-muted-foreground font-bold cursor-move ${draggedCol === col ? 'opacity-50' : ''}`}
+                    title="Drag column header to reorder"
                   >
                     {col}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="font-data text-[11px]">
+            <tbody className={`divide-y divide-border/60 ${tableTextSize}`}>
               {paginatedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={12 + (visibleExtraColumns || []).length} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={12 + (visibleExtraColumns || []).length} className="p-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center">
-                      <Filter className="h-8 w-8 mb-2 opacity-50" />
-                      <p className="text-xs">No records match your filters.</p>
+                      <Filter className="h-8 w-8 mb-2 opacity-40 text-muted-foreground" />
+                      <p className="text-sm font-semibold">No records match your active filters</p>
+                      <p className="text-xs text-muted-foreground mt-1">Try clearing some filter boundaries or resetting</p>
+                      <button
+                        onClick={resetAllFilters}
+                        className="mt-3 px-3 py-1 text-xs font-bold uppercase tracking-wider bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
+                      >
+                        Reset All Filters
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -809,45 +974,68 @@ export default function DataExplorer() {
                 paginatedRecords.map((r: any, idx: number) => {
                   const c = calculateRow(r);
                   const isPaid = c.mainPaid === 1;
+                  const isPartial = !isPaid && (c.totalCleared > 0 || (Number(r.dac ?? r.DAC) || 0) > 0);
+                  const pos = Number(r.principal_outstanding) || 0;
+                  const emi = Number(r.emi_amt) || 0;
+                  const ecs = Number(r.ecs ?? r.ECS) || 0;
+                  const dac = Number(r.dac ?? r.DAC) || 0;
+                  const aggrId = r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || '-';
+                  const rowBorder = getBucketRowBorder(r.bom_bkt);
+
                   return (
-                    <tr key={r.id || idx} className="border-b border-border hover:bg-muted/30 transition-colors">
-                      <td className={`sticky left-0 z-10 bg-card border-r border-border px-2 ${tdPad}`} onClick={(e) => e.stopPropagation()}>
-        <Checkbox 
-          checked={selectedCases.has(r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID)}
-          onCheckedChange={(c) => {
-             const n = new Set(selectedCases);
-             const id = r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID;
-             if (c) n.add(id); else n.delete(id);
-             setSelectedCases(n);
-          }}
-        />
-     </td>
-     <td className={`sticky left-10 z-10 bg-card border-r border-border px-2 ${tdPad} text-primary font-bold cursor-pointer hover:underline`} onClick={() => handleRowClick(r)}>{r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || '-'}</td>
-                                            <td className={`px-2 ${tdPad} cursor-pointer group`} onClick={() => {
-                        const rawName = r.customer_name || r.CUSTOMERNAME || r['Customer Name'] || r.CUSTOMER_NAME || r.customername || '';
-                        const name = String(rawName).trim().toUpperCase();
-                        if (name !== '-' && name !== '') {
-                          const address = addressKey ? String(r[addressKey] || '').trim().toUpperCase() : '';
-                          const contact = contactKey ? String(r[contactKey] || '').trim().toUpperCase() : '';
-                          const fingerprint = `${name}||${contact}||${address}`;
-                          
-                          const stats = customerStats[fingerprint];
-                          if (stats && stats.count > 1) {
-                            const matched = baseRecords.filter((rec: any) => {
-                              const rRawName = rec.customer_name || rec.CUSTOMERNAME || rec['Customer Name'] || rec.CUSTOMER_NAME || rec.customername || '';
-                              const rName = String(rRawName).trim().toUpperCase();
-                              const rAddr = addressKey ? String(rec[addressKey] || '').trim().toUpperCase() : '';
-                              const rCont = contactKey ? String(rec[contactKey] || '').trim().toUpperCase() : '';
-                              return `${rName}||${rCont}||${rAddr}` === fingerprint;
-                            });
-                            setMultiCaseModal({ name: name, records: matched });
-                          } else {
-                            handleRowClick(r);
+                    <tr 
+                      key={r.id || idx} 
+                      className={`hover:bg-muted/30 transition-colors ${rowBorder}`}
+                    >
+                      {/* Frozen Col 1: Checkbox */}
+                      <td className={`sticky left-0 z-10 bg-card border-r border-border px-2.5 ${tdPad}`} onClick={(e) => e.stopPropagation()}>
+                        <Checkbox 
+                          checked={selectedCases.has(aggrId)}
+                          onCheckedChange={(chk) => {
+                            const n = new Set(selectedCases);
+                            if (chk) n.add(aggrId); else n.delete(aggrId);
+                            setSelectedCases(n);
+                          }}
+                        />
+                      </td>
+
+                      {/* Frozen Col 2: Aggr No */}
+                      <td 
+                        className={`sticky left-10 z-10 bg-card border-r border-border px-3 ${tdPad} font-mono font-bold text-primary cursor-pointer hover:underline`} 
+                        onClick={() => handleRowClick(r)}
+                      >
+                        {aggrId}
+                      </td>
+
+                      {/* Frozen Col 3: Customer Name */}
+                      <td 
+                        className={`sticky left-[142px] z-10 bg-card border-r border-border px-3 ${tdPad} cursor-pointer group`} 
+                        onClick={() => {
+                          const rawName = r.customer_name || r.CUSTOMERNAME || r['Customer Name'] || r.CUSTOMER_NAME || r.customername || '';
+                          const name = String(rawName).trim().toUpperCase();
+                          if (name !== '-' && name !== '') {
+                            const address = addressKey ? String(r[addressKey] || '').trim().toUpperCase() : '';
+                            const contact = contactKey ? String(r[contactKey] || '').trim().toUpperCase() : '';
+                            const fingerprint = `${name}||${contact}||${address}`;
+                            
+                            const stats = customerStats[fingerprint];
+                            if (stats && stats.count > 1) {
+                              const matched = baseRecords.filter((rec: any) => {
+                                const rRawName = rec.customer_name || rec.CUSTOMERNAME || rec['Customer Name'] || rec.CUSTOMER_NAME || rec.customername || '';
+                                const rName = String(rRawName).trim().toUpperCase();
+                                const rAddr = addressKey ? String(rec[addressKey] || '').trim().toUpperCase() : '';
+                                const rCont = contactKey ? String(rec[contactKey] || '').trim().toUpperCase() : '';
+                                return `${rName}||${rCont}||${rAddr}` === fingerprint;
+                              });
+                              setMultiCaseModal({ name: name, records: matched });
+                            } else {
+                              handleRowClick(r);
+                            }
                           }
-                        }
-                      }}>
+                        }}
+                      >
                         <div className="flex flex-col">
-                          <span className="text-primary group-hover:underline font-semibold">
+                          <span className="font-semibold text-foreground group-hover:text-primary transition-colors">
                             {r.customer_name || r.CUSTOMERNAME || r['Customer Name'] || r.CUSTOMER_NAME || r.customername || '-'}
                           </span>
                           {(() => {
@@ -860,7 +1048,7 @@ export default function DataExplorer() {
                             const stats = customerStats[fingerprint];
                             if (stats && stats.count > 1) {
                               return (
-                                <span className="text-[9px] font-bold text-muted-foreground mt-0.5 bg-muted/50 px-1 py-0.5 rounded w-fit group-hover:bg-primary/10 group-hover:text-primary transition-colors" title="Matched via Name + Address/Contact">
+                                <span className="text-[9px] font-bold text-muted-foreground mt-0.5 bg-muted/60 px-1 py-0.2 rounded w-fit group-hover:bg-primary/10 group-hover:text-primary transition-colors" title="Multiple cases linked to this customer">
                                   {stats.count} CASES • {fmtCur(stats.totalPos)}
                                 </span>
                               );
@@ -869,22 +1057,95 @@ export default function DataExplorer() {
                           })()}
                         </div>
                       </td>
-                      <td className={`px-2 ${tdPad} text-foreground font-bold`}>{r.bom_bkt}</td>
-                      <td className={`px-2 ${tdPad} text-muted-foreground`}>{r.state || r.State || '-'}</td>
-                      <td className={`px-2 ${tdPad} text-muted-foreground`}>{r.city || r.City || '-'}</td>
-                      <td className={`px-2 ${tdPad} text-muted-foreground`}>{r.executive_name || r['Executive Name'] || '-'}</td>
-                      <td className={`px-2 ${tdPad} text-right font-bold text-foreground`}>{fmtCur(Number(r.principal_outstanding) || 0)}</td>
-                      <td className={`px-2 ${tdPad} text-right text-muted-foreground`}>{fmtCur(Number(r.emi_amt) || 0)}</td>
-                      <td className={`px-2 ${tdPad} text-right text-muted-foreground`}>{fmtCur(Number(r.ecs ?? r.ECS) || 0)}</td>
-                      <td className={`px-2 ${tdPad} text-right text-info font-bold`}>{fmtCur(Number(r.dac ?? r.DAC) || 0)}</td>
-                      <td className={`px-2 ${tdPad} text-right`}>
-                        {isPaid 
-                          ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-success/20 text-success uppercase tracking-wider">Paid</span>
-                          : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-muted text-muted-foreground uppercase tracking-wider">Unpaid</span>
-                        }
+
+                      {/* Bucket */}
+                      <td className={`px-2.5 ${tdPad}`}>
+                        <BucketBadge bkt={r.bom_bkt} />
                       </td>
+
+                      {/* State */}
+                      <td className={`px-2.5 ${tdPad} text-muted-foreground font-medium`}>
+                        {r.state || r.State || '-'}
+                      </td>
+
+                      {/* City */}
+                      <td className={`px-2.5 ${tdPad} text-muted-foreground font-medium`}>
+                        {r.city || r.City || '-'}
+                      </td>
+
+                      {/* Executive */}
+                      <td className={`px-2.5 ${tdPad} text-muted-foreground font-medium`}>
+                        {r.executive_name || r['Executive Name'] || '-'}
+                      </td>
+
+                      {/* POS (Right aligned, Mono) */}
+                      <td className={`px-3 ${tdPad} text-right font-mono font-bold text-foreground`}>
+                        <div>{fmtCur(pos)}</div>
+                        {density === 'detailed' && (
+                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                            {pos >= 50000 && (
+                              <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded">
+                                High POS
+                              </span>
+                            )}
+                            {dac > 0 && (
+                              <span className="text-[9px] font-bold text-sky-600 dark:text-sky-400 bg-sky-500/10 px-1 py-0.2 rounded">
+                                Rec: {((dac / (pos || 1)) * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* EMI (Right aligned, Mono) */}
+                      <td className={`px-3 ${tdPad} text-right font-mono text-muted-foreground`}>
+                        <div className="font-semibold text-foreground">{fmtCur(emi)}</div>
+                        {density === 'detailed' && (
+                          <div className="mt-0.5">
+                            {ecs > 0 ? (
+                              ecs >= emi ? (
+                                <span className="inline-flex items-center text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 py-0.2 rounded">
+                                  ECS Full ({fmtCur(ecs)})
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded">
+                                  ECS Part ({fmtCur(ecs)})
+                                </span>
+                              )
+                            ) : (
+                              <span className="inline-flex items-center text-[9px] font-medium text-muted-foreground bg-muted/60 px-1 py-0.2 rounded">
+                                No ECS
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* ECS (Right aligned, Mono) */}
+                      <td className={`px-3 ${tdPad} text-right font-mono text-muted-foreground`}>
+                        {fmtCur(ecs)}
+                      </td>
+
+                      {/* DAC (Right aligned, Mono, Info) */}
+                      <td className={`px-3 ${tdPad} text-right font-mono font-bold text-sky-600 dark:text-sky-400`}>
+                        {fmtCur(dac)}
+                      </td>
+
+                      {/* Status */}
+                      <td className={`px-3 ${tdPad} text-right`}>
+                        <div className="flex flex-col items-end">
+                          <StatusBadge isPaid={isPaid} isPartial={isPartial} />
+                          {density === 'detailed' && (
+                            <span className={`text-[9px] font-medium mt-0.5 ${isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                              {isPaid ? '100% Cleared' : `Bucket ${r.bom_bkt || '-'} Pending`}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Extra Dynamic Columns */}
                       {(visibleExtraColumns || []).filter(col => allExtraKeys.includes(col)).map(col => (
-                        <td key={col} className={`px-2 ${tdPad} text-muted-foreground font-sans text-xs`}>
+                        <td key={col} className={`px-3 ${tdPad} text-muted-foreground text-xs`}>
                           {r[col] !== undefined && r[col] !== null ? String(r[col]) : '-'}
                         </td>
                       ))}
@@ -896,183 +1157,80 @@ export default function DataExplorer() {
           </table>
         </div>
         
-        {(totalPages > 0) && (
-          <div className="p-3 border-t border-border bg-muted/10 flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground font-medium">Page {page} of {totalPages}</span>
-            <button onClick={handleExport} className="mx-4 inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 rounded hover:bg-primary/20 transition-colors">
-              <Download className="h-3 w-3" /> Export Filtered Data
-            </button>
-            <div className="flex gap-1">
-              <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider bg-card border border-border rounded hover:bg-muted disabled:opacity-50 transition-colors">Prev</button>
-              <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider bg-card border border-border rounded hover:bg-muted disabled:opacity-50 transition-colors">Next</button>
+        {/* 7. Pagination & Page Size Control */}
+        <div className="p-3 border-t border-border bg-muted/10 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span>
+              Showing <span className="font-mono font-bold text-foreground">{sortedRecords.length > 0 ? (page - 1) * itemsPerPage + 1 : 0}</span> to <span className="font-mono font-bold text-foreground">{Math.min(page * itemsPerPage, sortedRecords.length)}</span> of <span className="font-mono font-bold text-foreground">{sortedRecords.length}</span> rows
+            </span>
+
+            <div className="flex items-center gap-1.5 ml-2">
+              <span className="text-[11px] font-medium">Per page:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  const size = Number(e.target.value);
+                  setItemsPerPage(size);
+                  localStorage.setItem('dataExplorerPageSize', size.toString());
+                  setPage(1);
+                }}
+                className="h-7 rounded border border-border bg-card px-1.5 text-xs font-semibold outline-none focus:border-primary"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
             </div>
           </div>
-        )}
-      </div>
 
-      <Sheet open={false} onOpenChange={(o) => !o && setSelectedRecord(null)}>
-        <SheetContent className="w-full sm:max-w-md bg-card p-0 border-l border-border flex flex-col h-full">
-          <SheetHeader className="p-6 border-b border-border bg-muted/10">
-            <div className="flex justify-between items-start">
-              <div>
-                <SheetTitle className="text-xl font-heading font-bold text-foreground">
-                  {selectedRecord?.customer_name || selectedRecord?.CUSTOMERNAME || '-'}
-                </SheetTitle>
-                <SheetDescription className="font-data font-medium text-primary mt-1">
-                  Aggr: {selectedRecord?.agreementid || selectedRecord?.agreement_no || '-'}
-                </SheetDescription>
-              </div>
-              <Badge variant="outline" className="uppercase font-bold tracking-wider">{selectedRecord?.bom_bkt ? `BKT ${selectedRecord.bom_bkt}` : ''}</Badge>
-            </div>
-          </SheetHeader>
-          <ScrollArea className="flex-1 p-6">
-            <div className="grid gap-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1 bg-muted/30 p-3 rounded-lg border border-border/50">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">State</p>
-                  <p className="font-sans text-sm font-semibold">{selectedRecord?.state || selectedRecord?.State || '-'}</p>
-                </div>
-                <div className="space-y-1 bg-muted/30 p-3 rounded-lg border border-border/50">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">City</p>
-                  <p className="font-sans text-sm font-semibold">{selectedRecord?.city || selectedRecord?.City || '-'}</p>
-                </div>
-                <div className="space-y-1 bg-muted/30 p-3 rounded-lg border border-border/50">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Executive</p>
-                  <p className="font-sans text-sm font-semibold">{selectedRecord?.executive_name || selectedRecord?.['Executive Name'] || '-'}</p>
-                </div>
-                <div className="space-y-1 bg-muted/30 p-3 rounded-lg border border-border/50">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Status</p>
-                  <p className="font-sans text-sm font-semibold">
-                    {calculateRow(selectedRecord || {}).mainPaid === 1 ? <span className="text-success flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-success"></span>Paid</span> : <span className="text-muted-foreground flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-muted-foreground"></span>Unpaid</span>}
-                  </p>
-                </div>
-              </div>
+          <div className="flex items-center gap-1">
+            <button 
+              disabled={page === 1} 
+              onClick={() => setPage(1)} 
+              className="p-1 rounded border border-border bg-card hover:bg-muted disabled:opacity-40 transition-colors"
+              title="First Page"
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </button>
+            <button 
+              disabled={page === 1} 
+              onClick={() => setPage(p => p - 1)} 
+              className="px-2.5 py-1 text-xs font-semibold border border-border bg-card hover:bg-muted disabled:opacity-40 rounded transition-colors"
+            >
+              Prev
+            </button>
 
-              <div>
-                <h4 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                  <span className="h-px flex-1 bg-border"></span>
-                  Financial Summary
-                  <span className="h-px flex-1 bg-border"></span>
-                </h4>
-                <div className="grid gap-2 text-sm">
-                  <div className="flex justify-between p-2 rounded hover:bg-muted/30 transition-colors">
-                    <span className="text-muted-foreground">Principal Outstanding (POS)</span>
-                    <span className="font-data font-bold text-foreground">{fmtCur(Number(selectedRecord?.principal_outstanding) || 0)}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded hover:bg-muted/30 transition-colors">
-                    <span className="text-muted-foreground">EMI Amount</span>
-                    <span className="font-data font-bold">{fmtCur(Number(selectedRecord?.emi_amt) || 0)}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded hover:bg-muted/30 transition-colors">
-                    <span className="text-muted-foreground">Collection (DAC)</span>
-                    <span className="font-data font-bold text-info">{fmtCur(Number(selectedRecord?.dac ?? selectedRecord?.DAC) || 0)}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded hover:bg-muted/30 transition-colors">
-                    <span className="text-muted-foreground">ECS</span>
-                    <span className="font-data font-bold text-info">{fmtCur(Number(selectedRecord?.ecs ?? selectedRecord?.ECS) || 0)}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded hover:bg-muted/30 transition-colors">
-                    <span className="text-muted-foreground">Special</span>
-                    <span className="font-data font-bold text-info">{fmtCur(Number(selectedRecord?.special ?? selectedRecord?.Special) || 0)}</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded hover:bg-muted/30 transition-colors border-t border-border mt-2 pt-4">
-                    <span className="text-muted-foreground font-semibold">Total Cleared</span>
-                    <span className="font-data font-bold text-success">
-                      {fmtCur(calculateRow(selectedRecord || {}).totalCleared)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Page indicator */}
+            <span className="px-2 text-xs font-semibold text-foreground">
+              Page {page} of {totalPages}
+            </span>
 
-              {selectedRecord && (
-                <div className="mt-6">
-                  <h4 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <span className="h-px flex-1 bg-border"></span>
-                    Additional Information
-                    <span className="h-px flex-1 bg-border"></span>
-                  </h4>
-                  <div className="grid gap-2 text-sm">
-                    {Object.keys(selectedRecord)
-                      .filter(k => !STANDARD_KEYS.includes(k) && !k.startsWith('_'))
-                      .map(k => (
-                        <div key={k} className="flex justify-between p-2 rounded hover:bg-muted/30 transition-colors">
-                          <span className="text-muted-foreground">{k}</span>
-                          <span className="font-sans font-medium text-foreground">{selectedRecord[k] || '-'}</span>
-                        </div>
-                      ))
-                    }
-                    {Object.keys(selectedRecord).filter(k => !STANDARD_KEYS.includes(k) && !k.startsWith('_')).length === 0 && (
-                      <div className="text-center p-4 text-xs italic text-muted-foreground">No extra data available</div>
-                    )}
-                  </div>
-                </div>
-              )}
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
-
-      {multiCaseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-background/80 backdrop-blur-sm">
-          <div className="bg-card w-full max-w-7xl max-h-[90vh] rounded-xl shadow-2xl border border-border flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-4 border-b border-border bg-muted/30 flex justify-between items-center shrink-0">
-              <div className="flex flex-col">
-                <h2 className="text-xl font-heading font-bold text-foreground">{multiCaseModal.name || 'Multiple Cases'}</h2>
-                <p className="font-sans font-medium text-sm text-muted-foreground">{multiCaseModal.records.length} Related Cases Found</p>
-              </div>
-              <button onClick={() => setMultiCaseModal(null)} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-auto bg-card">
-              <table className="w-full text-left border-collapse whitespace-nowrap">
-                <thead className="sticky top-0 z-20 bg-muted/95 backdrop-blur shadow-sm">
-                  <tr className="border-b border-border">
-                    <th className="px-4 py-3 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Aggr No</th>
-                    <th className="px-4 py-3 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Bucket</th>
-                    <th className="px-4 py-3 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">State</th>
-                    <th className="px-4 py-3 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">City</th>
-                    <th className="px-4 py-3 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Executive</th>
-                    <th className="px-4 py-3 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">POS</th>
-                    <th className="px-4 py-3 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">EMI</th>
-                    <th className="px-4 py-3 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">ECS</th>
-                    <th className="px-4 py-3 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">DAC</th>
-                    <th className="px-4 py-3 font-sans text-[10px] uppercase tracking-wider text-muted-foreground font-bold text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="font-data text-[12px]">
-                  {multiCaseModal.records.map((r, idx) => {
-                    const c = calculateRow(r);
-                    const isPaid = c.mainPaid === 1;
-                    return (
-                      <tr key={idx} className="border-b border-border hover:bg-muted/50 transition-colors">
-                        <td className="px-4 py-3 text-primary font-bold cursor-pointer hover:underline" onClick={() => { setMultiCaseModal(null); handleRowClick(r); }}>
-                          {r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || '-'}
-                        </td>
-                        <td className="px-4 py-3 font-bold">{r.bom_bkt}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{r.state || r.State || '-'}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{r.city || r.City || '-'}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{r.executive_name || r['Executive Name'] || '-'}</td>
-                        <td className="px-4 py-3 text-right font-bold">{fmtCur(Number(r.principal_outstanding) || 0)}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{fmtCur(Number(r.emi_amt) || 0)}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{fmtCur(Number(r.ecs ?? r.ECS) || 0)}</td>
-                        <td className="px-4 py-3 text-right text-info font-bold">{fmtCur(Number(r.dac ?? r.DAC) || 0)}</td>
-                        <td className="px-4 py-3 text-right">
-                          {isPaid 
-                            ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-success/20 text-success uppercase tracking-wider">Paid</span>
-                            : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground uppercase tracking-wider">Unpaid</span>
-                          }
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <button 
+              disabled={page === totalPages} 
+              onClick={() => setPage(p => p + 1)} 
+              className="px-2.5 py-1 text-xs font-semibold border border-border bg-card hover:bg-muted disabled:opacity-40 rounded transition-colors"
+            >
+              Next
+            </button>
+            <button 
+              disabled={page === totalPages} 
+              onClick={() => setPage(totalPages)} 
+              className="p-1 rounded border border-border bg-card hover:bg-muted disabled:opacity-40 transition-colors"
+              title="Last Page"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </button>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* 8. Multi-Case Modal for Customer Drilldown */}
+      <MultiCaseModal
+        data={multiCaseModal}
+        onClose={() => setMultiCaseModal(null)}
+        onSelectRecord={(r) => handleRowClick(r)}
+      />
     </AppLayout>
   );
 }
