@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { DataTable } from '../components/ui/DataTable';
 import { db, CustomerFeedback } from '../lib/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { Download, Eye, CalendarIcon } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -14,8 +15,12 @@ import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 
 export default function AllFeedback() {
-  const [feedbacks, setFeedbacks] = useState<CustomerFeedback[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const feedbacks = useLiveQuery(
+    () => db.customer_feedbacks.orderBy('createdAt').reverse().toArray(),
+    [],
+    [] as CustomerFeedback[]
+  );
+  const isLoading = feedbacks === undefined;
   
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -23,16 +28,6 @@ export default function AllFeedback() {
   
   // Dialog State
   const [selectedFeedback, setSelectedFeedback] = useState<CustomerFeedback | null>(null);
-
-  useEffect(() => {
-    const fetchFeedbacks = async () => {
-      setIsLoading(true);
-      const data = await db.customer_feedbacks.toArray();
-      setFeedbacks(data.sort((a, b) => parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime()));
-      setIsLoading(false);
-    };
-    fetchFeedbacks();
-  }, []);
 
   const filteredFeedbacks = useMemo(() => {
     return feedbacks.filter(f => {

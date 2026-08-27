@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from 'sonner';
 import { db } from '../lib/db';
+import { ShiftAttendanceCard } from '../components/attendance/ShiftAttendanceCard';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -25,7 +26,13 @@ export default function Profile() {
     if (user) {
         try {
             const dataToUpdate: any = { name };
-            if (password) dataToUpdate.plainPassword = password;
+            if (password) {
+                const { derivePasswordHash } = await import('../lib/authCrypto');
+                const derived = await derivePasswordHash(password);
+                dataToUpdate.passwordHash = derived.hash;
+                dataToUpdate.salt = derived.salt;
+                dataToUpdate.iterations = derived.iterations;
+            }
 
             await db.users.update(user.id, dataToUpdate);
             
@@ -55,6 +62,20 @@ export default function Profile() {
           </p>
         </div>
         
+        <Separator />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1">
+            <h2 className="text-xl font-headline font-semibold">Shift & Attendance</h2>
+            <p className="text-sm text-muted-foreground">
+              Record punch-in, punch-out, and break times for today.
+            </p>
+          </div>
+          <div className="lg:col-span-2">
+            <ShiftAttendanceCard />
+          </div>
+        </div>
+
         <Separator />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

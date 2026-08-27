@@ -11,11 +11,12 @@ import { Plus, Pencil, Trash2, Check, ChevronsUpDown, Network, ArrowRight } from
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { UserFormSheet } from '../components/settings/UserFormSheet';
-import { db, backupSystemData, resetSystemData } from '../lib/db';
+import { db, backupSystemData, resetSystemData, restoreSystemData } from '../lib/db';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { cn } from '../lib/utils';
 import { TargetInput } from '../components/TargetInput';
+import { SystemHealthDiagnostics } from '../components/settings/SystemHealthDiagnostics';
 
 
 function SystemTab() {
@@ -27,6 +28,26 @@ function SystemTab() {
       toast.success('System backup downloaded successfully');
     } catch (e) {
       toast.error('Failed to create backup');
+    }
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm("WARNING: Restoring a backup will overwrite existing local data. Ensure you have made a backup first. Proceed?")) {
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      const buffer = await file.arrayBuffer();
+      await restoreSystemData(buffer);
+      toast.success('System restored successfully. Reloading...');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to restore backup');
+      e.target.value = '';
     }
   };
 
@@ -47,9 +68,21 @@ function SystemTab() {
     <div className="max-w-2xl space-y-6">
       <div className="bg-card border rounded-lg p-6 space-y-4">
         <div>
-          <h3 className="text-lg font-semibold">Data Backup</h3>
-          <p className="text-sm text-muted-foreground mb-4">Download a complete JSON backup of all system data.</p>
-          <Button onClick={handleBackup}>Download Full Backup</Button>
+          <h3 className="text-lg font-semibold">Data Backup & Restore</h3>
+          <p className="text-sm text-muted-foreground mb-4">Download a complete JSON backup of all system data or restore from an existing backup file.</p>
+          <div className="flex items-center gap-4">
+            <Button onClick={handleBackup}>Download Full Backup</Button>
+            <div className="relative">
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleRestore}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                title="Restore from JSON Backup"
+              />
+              <Button variant="outline">Restore Backup</Button>
+            </div>
+          </div>
         </div>
       </div>
       <div className="bg-red-50 dark:bg-red-950/10 border border-red-200 dark:border-red-900 rounded-lg p-6 space-y-4">
@@ -192,7 +225,7 @@ function UserManagementTab() {
 }
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<'users' | 'targets' | 'system' | 'connectivity'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'targets' | 'diagnostics' | 'connectivity' | 'system'>('users');
   const { user } = useAuth();
   
   if (user?.role !== 'ADMIN') {
@@ -208,31 +241,37 @@ export default function Settings() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-headline font-bold tracking-tight mb-2">Settings</h1>
-          <p className="text-muted-foreground">Manage users, system configurations, connectivity, and targets.</p>
+          <p className="text-muted-foreground">Manage users, system configurations, connectivity, diagnostics, and targets.</p>
         </div>
 
-        <div className="flex gap-2 border-b">
+        <div className="flex gap-2 border-b overflow-x-auto">
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 font-medium border-b-2 transition-colors ${activeTab === 'users' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            className={`px-4 py-2 font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === 'users' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           >
             Users
           </button>
           <button
             onClick={() => setActiveTab('targets')}
-            className={`px-4 py-2 font-medium border-b-2 transition-colors ${activeTab === 'targets' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            className={`px-4 py-2 font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === 'targets' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           >
             Global Targets
           </button>
           <button
+            onClick={() => setActiveTab('diagnostics')}
+            className={`px-4 py-2 font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === 'diagnostics' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+            Diagnostics & Health
+          </button>
+          <button
             onClick={() => setActiveTab('connectivity')}
-            className={`px-4 py-2 font-medium border-b-2 transition-colors ${activeTab === 'connectivity' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            className={`px-4 py-2 font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === 'connectivity' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           >
             Connectivity & Mesh
           </button>
           <button
             onClick={() => setActiveTab('system')}
-            className={`px-4 py-2 font-medium border-b-2 transition-colors ${activeTab === 'system' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            className={`px-4 py-2 font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === 'system' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
           >
             System & Backups
           </button>
@@ -241,6 +280,7 @@ export default function Settings() {
         <div className="pt-4">
           {activeTab === 'users' && <UserManagementTab />}
           {activeTab === 'targets' && <AdvancedTargetsTab />}
+          {activeTab === 'diagnostics' && <SystemHealthDiagnostics />}
           {activeTab === 'connectivity' && (
             <div className="max-w-2xl bg-card border rounded-2xl p-6 space-y-4 shadow-sm">
               <div className="flex items-center gap-3">

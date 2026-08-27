@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  
-  Filter, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useMemo } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { AppLayout } from '../components/layout/AppLayout';
 import { db, CustomerFeedback } from '../lib/db';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { submitCustomerFeedback } from '../lib/repositories/feedbackRepository';
 import { fmtCur } from '../lib/formatters';
 import { 
   ChevronLeft, ChevronRight, ArrowLeft, PhoneCall, Phone, MessageCircle, 
@@ -35,7 +35,18 @@ export default function CustomerDetail() {
   const { records } = useData();
   const { user } = useAuth();
   
-  const [feedbacks, setFeedbacks] = useState<CustomerFeedback[]>([]);
+  const feedbacks = useLiveQuery(
+    async () => {
+      if (!id) return [];
+      return db.customer_feedbacks.where('agreementid').equals(id).reverse().sortBy('createdAt');
+    },
+    [id],
+    [] as CustomerFeedback[]
+  );
+
+  
+  
+  
   const [otherPropsSearch, setOtherPropsSearch] = useState('');
   
   // Feedback Form State
@@ -69,21 +80,10 @@ export default function CustomerDetail() {
           totalList: list.length
         };
       }
-    } catch(e) { /* ignore */ }
+    } catch { /* ignore */ }
     return { prevId: null, nextId: null, currentIndex: -1, totalList: 0 };
   }, [id]);
 
-  useEffect(() => {
-    if (id) {
-      db.customer_feedbacks.where('agreementid').equals(id).reverse().sortBy('createdAt')
-        .then(data => setFeedbacks(data))
-        .catch(console.error);
-    }
-  }, [id]);
-
-  
-  
-  
   const phones = useMemo(() => {
     if (!record) return [];
     const extracted: { number: string, source: string, name?: string }[] = [];
@@ -213,8 +213,11 @@ export default function CustomerDetail() {
     };
 
     try {
-      await db.customer_feedbacks.put(feedback);
-      setFeedbacks([feedback, ...feedbacks]);
+      await submitCustomerFeedback(feedback, {
+        actorUserId: user?.id,
+        actorName: user?.name || 'Unknown Agent',
+        actorRole: user?.role || 'EXECUTIVE',
+      });
       toast.success('Feedback logged successfully');
       
       // Reset form (keep number selected for convenience)

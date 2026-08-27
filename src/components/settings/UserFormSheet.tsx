@@ -148,7 +148,7 @@ export function UserFormSheet({ open, onOpenChange, user, onSave }: UserFormShee
             role,
             assignedExecutiveName: assignedExecutiveName.trim() || undefined,
             permissions: { views: selectedViews },
-            plainPassword: password || undefined,
+            password: password || undefined,
             maintenanceMode
         });
         onOpenChange(false);

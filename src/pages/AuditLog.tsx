@@ -2,11 +2,21 @@ import { useState, useMemo } from 'react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { useData } from '../contexts/DataContext';
 import { fmtDate } from '../lib/formatters';
-import { Search, UserCircle, Edit3, ArrowRight } from 'lucide-react';
+import { Search, UserCircle, Edit3, ArrowRight, ShieldCheck, AlertCircle, RefreshCw } from 'lucide-react';
+import { verifyAuditChainIntegrity } from '../lib/repositories/auditRepository';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { toast } from 'sonner';
 
 export default function AuditLog() {
   const { auditLog } = useData();
   const [search, setSearch] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<{
+    valid: boolean;
+    totalEntries: number;
+    message: string;
+  } | null>(null);
 
   const filtered = useMemo(() => {
     if (!search) return auditLog;
@@ -14,22 +24,60 @@ export default function AuditLog() {
     return auditLog.filter(a => a.agreementid.toLowerCase().includes(s) || a.changedBy.toLowerCase().includes(s));
   }, [auditLog, search]);
 
+  const handleVerifyChain = async () => {
+    setIsVerifying(true);
+    try {
+      const res = await verifyAuditChainIntegrity();
+      setVerificationResult(res);
+      if (res.valid) {
+        toast.success(`Audit chain verified: ${res.totalEntries} records intact.`);
+      } else {
+        toast.error(res.message);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Verification failed');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-heading text-xl font-extrabold uppercase tracking-wide">Audit Log</h1>
-          <p className="font-data text-xs text-muted-foreground mt-1">Track all manual data changes and overrides</p>
+          <div className="flex items-center gap-2">
+            <h1 className="font-heading text-xl font-extrabold uppercase tracking-wide">Audit Log</h1>
+            {verificationResult && (
+              <Badge variant={verificationResult.valid ? "default" : "destructive"} className={verificationResult.valid ? "bg-emerald-600 hover:bg-emerald-600 gap-1 text-xs" : "gap-1 text-xs"}>
+                {verificationResult.valid ? <ShieldCheck className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                {verificationResult.valid ? 'Cryptographically Sealed' : 'Tampering Detected'}
+              </Badge>
+            )}
+          </div>
+          <p className="font-data text-xs text-muted-foreground mt-1">Track all manual data changes, overrides, and cryptographic SHA-256 hash-chains</p>
         </div>
         
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search agreement ID or user..."
-            className="h-10 w-full glass-input pl-9 pr-3 font-data text-sm outline-none focus:ring-1 focus:ring-primary"
-          />
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleVerifyChain}
+            disabled={isVerifying}
+            className="gap-2 text-xs font-semibold"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isVerifying ? 'animate-spin' : ''}`} />
+            Verify Chain
+          </Button>
+
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search agreement ID or user..."
+              className="h-10 w-full glass-input pl-9 pr-3 font-data text-sm outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
         </div>
       </div>
 

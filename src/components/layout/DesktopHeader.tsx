@@ -16,18 +16,12 @@ import { AgentNotifications } from '../agent/AgentNotifications';
 import { SyncStatusIndicator } from '../sync/SyncStatusIndicator';
 
 export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean; setCollapsed?: (val: boolean | ((prev: boolean) => boolean)) => void }) {
-  const { records, globalBucket, setGlobalBucket } = useData();
+  const { records,  } = useData();
   const { user, logout } = useAuth();
   const location = useLocation();
   const isExplorer = location.pathname === '/explorer';
 
-  const availableBuckets = useMemo(() => {
-    const bkts = new Set<string>();
-    (records || []).forEach((r: any) => {
-      if (r.bom_bkt) bkts.add(String(r.bom_bkt).trim().toUpperCase());
-    });
-    return Array.from(bkts).sort();
-  }, [records]);
+  
 
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
@@ -183,27 +177,7 @@ export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean
       </div>
 
       <div className="flex items-center gap-3 text-muted-foreground w-1/4 justify-end">
-        {availableBuckets.length > 0 && (
-          <div className="flex bg-muted/30 p-1 rounded-lg border border-border w-max mr-2 hidden lg:flex">
-            <button
-              type="button"
-              onClick={() => setGlobalBucket('ALL')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${globalBucket === 'ALL' ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:bg-muted'}`}
-            >
-              All Buckets
-            </button>
-            {availableBuckets.map(b => (
-              <button
-                type="button"
-                key={b}
-                onClick={() => setGlobalBucket(b)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${globalBucket === b ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:bg-muted'}`}
-              >
-                Bkt {b}
-              </button>
-            ))}
-          </div>
-        )}
+        
         
         <div className="flex items-center gap-1.5 border-l border-border pl-3">
           <SyncStatusIndicator />
@@ -235,6 +209,10 @@ export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean
               <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
                 <UserCircle className="mr-2 h-4 w-4" />
                 <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={logout} className="cursor-pointer text-orange-500 focus:text-orange-500">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 h-4 w-4"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>Lock Session</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />

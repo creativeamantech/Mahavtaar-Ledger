@@ -103,71 +103,15 @@ export function AgentLiveDashboard() {
         }
     }, [user]);
 
-    if (user?.role !== 'EXECUTIVE') {
-        return null;
-    }
-
-    const agentCustomers = records || [];
-    
-    const feedbackToday = feedbacks.filter(f => isToday(parseISO(f.createdAt)));
-    
-    const uniquePtpCustomers = useMemo(() => {
-        const ptpFeedbacks = feedbacks.filter(f => f.status === 'PTP');
-        const ptpAgreementIds = [...new Set(ptpFeedbacks.map(f => f.agreementid))];
-        return ptpAgreementIds.map(id => agentCustomers.find(c => c.agreementid === id)).filter(Boolean) as LoanRecord[];
-    }, [feedbacks, agentCustomers]);
-
-    const uniquePaidCustomers = useMemo(() => {
-        const paidFeedbacks = feedbacks.filter(f => f.status === 'Paid');
-        const paidAgreementIds = [...new Set(paidFeedbacks.map(f => f.agreementid))];
-        return paidAgreementIds.map(id => agentCustomers.find(c => c.agreementid === id)).filter(Boolean) as LoanRecord[];
-    }, [feedbacks, agentCustomers]);
-
-    const totalPTP = uniquePtpCustomers.reduce((sum, c) => sum + (Number(c.emi_amt || c.EMI) || 0), 0);
-    const totalPaid = uniquePaidCustomers.reduce((sum, c) => sum + (Number(c.dac || c.DAC) || 0), 0);
-
-    const contactedCustomerIds = new Set(feedbacks.map(f => f.agreementid));
-    const notContactedCustomers = agentCustomers.filter(c => !contactedCustomerIds.has(c.agreementid));
-
-    const getCustomersFromFeedback = (fbs: CustomerFeedback[]) => {
-        const ids = [...new Set(fbs.map(f => f.agreementid))];
-        return ids.map(id => agentCustomers.find(c => c.agreementid === id)).filter(Boolean) as LoanRecord[];
-    }
-
-    const feedbackStatusData = useMemo(() => {
-        return feedbacks.reduce((acc, f) => {
-            const status = f.status;
-            const existing = acc.find(item => item.name === status);
-            if (existing) {
-                existing.value++;
-            } else {
-                acc.push({ name: status, value: 1, fill: `hsl(var(--chart-${(acc.length % 5) + 1}))` });
-            }
-            return acc;
-        }, [] as { name: string; value: number; fill: string }[]);
-    }, [feedbacks]);
-
-    const chartConfig = useMemo(() => {
-        return feedbackStatusData.reduce((acc, item) => {
-            acc[item.name.replace(/\s/g, '')] = { label: item.name, color: item.fill };
-            return acc;
-        }, {} as any);
-    }, [feedbackStatusData]);
-
-    const recentActivities = [...feedbacks]
-        .sort((a, b) => parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime())
-        .slice(0, 10);
-
-    const getCustomerName = (id: string) => {
-        const c = agentCustomers.find(r => r.agreementid === id);
-        return c ? (c.customer_name || c['Customer Name'] || "Unknown") : "Unknown";
-    };
-
     const handleCardClick = (title: string, customers: LoanRecord[]) => {
         setSheetTitle(title);
         setSheetCustomers(customers);
         setSheetOpen(true);
     };
+
+    if (user?.role !== 'EXECUTIVE') {
+        return null;
+    }
 
   return (
     <div className="space-y-6">

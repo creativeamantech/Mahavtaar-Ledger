@@ -9,6 +9,7 @@ import { fmtCur, fmtPct, pctColor } from '../lib/formatters';
 import { DollarSign, AlertCircle, Database, BarChart3, TrendingUp, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ComposedChart, Line } from 'recharts';
 import { AgentLiveDashboard } from '../components/agent/AgentLiveDashboard';
+import { BucketFilter } from '../components/BucketFilter';
 
 export default function ExecDashboard() {
   const navigate = useNavigate();
@@ -227,6 +228,7 @@ export default function ExecDashboard() {
   if (isLoading) {
     return (
       <AppLayout>
+      <div className="mb-4"><BucketFilter /></div>
         <div className="flex h-[50vh] items-center justify-center text-muted-foreground animate-pulse">
           Loading dashboard metrics...
         </div>

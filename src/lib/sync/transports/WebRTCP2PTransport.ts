@@ -193,10 +193,10 @@ export class WebRTCP2PTransport implements TransportAdapter {
 
   async disconnect(): Promise<void> {
     for (const dc of this.dataChannels.values()) {
-      try { dc.close(); } catch {}
+      try { dc.close(); } catch { /* ignore close error */ }
     }
     for (const pc of this.peerConnections.values()) {
-      try { pc.close(); } catch {}
+      try { pc.close(); } catch { /* ignore close error */ }
     }
     this.dataChannels.clear();
     this.peerConnections.clear();

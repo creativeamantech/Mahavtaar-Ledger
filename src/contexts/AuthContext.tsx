@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, Role, DEFAULT_PERMISSIONS } from '../constants/permissions';
 import { db } from '../lib/db';
+import { derivePasswordHash, verifyPassword } from '../lib/authCrypto';
 
 interface AuthContextType {
   user: User | null;
@@ -21,15 +22,6 @@ const MOCK_USERS: User[] = [
   { id: '1', name: 'Admin User', email: 'admin@company.com', role: 'ADMIN', permissions: { views: DEFAULT_PERMISSIONS.ADMIN } },
 ];
 
-// Browser-local demo-grade auth. Hash function to avoid plaintext password storage.
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,9 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const count = await db.users.count();
         if (count === 0) {
-          const defaultPasswordHash = await hashPassword('Admin@123');
-          const seedUsers = MOCK_USERS.map(u => ({ ...u, passwordHash: defaultPasswordHash, plainPassword: 'Admin@123' }));
-          await db.users.bulkPut(seedUsers);
+          const derived = await derivePasswordHash('Admin@123');
+          const seedUsers = MOCK_USERS.map(u => ({
+            ...u,
+            passwordHash: derived.hash,
+            salt: derived.salt,
+            iterations: derived.iterations,
+          }));
+          await db.users.bulkPut(seedUsers as any);
         } else {
           // Cleanup legacy mock users if they still exist
           const legacyIds = ['2', '3', '4'];
@@ -56,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const dbUsers = await db.users.toArray();
         
         // Ensure default permissions only if none are configured
-        const updatedUsers = [];
+        const updatedUsers: User[] = [];
         for (const u of dbUsers) {
           if (!u.permissions || !u.permissions.views || u.permissions.views.length === 0) {
             u.permissions = { views: DEFAULT_PERMISSIONS[u.role] || [] };
@@ -68,9 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: u.email, 
             role: u.role as Role, 
             permissions: u.permissions, 
-            plainPassword: u.plainPassword,
             assignedExecutiveName: u.assignedExecutiveName,
-            maintenanceMode: u.maintenanceMode
+            maintenanceMode: u.maintenanceMode,
           });
         }
         setUsers(updatedUsers);
@@ -86,15 +82,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (identifier: string, password: string): Promise<User> => {
     const searchStr = identifier.trim().toLowerCase();
-    const found = await db.users.filter(u => u.name.trim().toLowerCase() === searchStr || (!!u.email && u.email.trim().toLowerCase() === searchStr)).first();
+    const found: any = await db.users.filter(u => 
+      u.name.trim().toLowerCase() === searchStr || (!!u.email && u.email.trim().toLowerCase() === searchStr)
+    ).first();
+
     if (!found) {
       throw new Error('Invalid credentials');
     }
-    
-    const inputHash = await hashPassword(password);
-    if (found.passwordHash !== inputHash) {
+
+    // Check account lockout
+    if (found.lockoutUntil && new Date(found.lockoutUntil) > new Date()) {
+      const waitSeconds = Math.ceil((new Date(found.lockoutUntil).getTime() - Date.now()) / 1000);
+      throw new Error(`Account temporarily locked due to failed attempts. Please try again in ${waitSeconds}s.`);
+    }
+
+    const { isValid, needsRehash } = await verifyPassword(
+      password,
+      found.passwordHash,
+      found.salt,
+      found.iterations
+    );
+
+    if (!isValid) {
+      const attempts = (found.failedLoginAttempts || 0) + 1;
+      const updates: any = { failedLoginAttempts: attempts };
+      if (attempts >= 5) {
+        // Lock for 60 seconds
+        updates.lockoutUntil = new Date(Date.now() + 60000).toISOString();
+      }
+      await db.users.update(found.id, updates);
       throw new Error('Invalid credentials');
     }
+
+    // Reset failed attempts & upgrade legacy hash to PBKDF2 if needed
+    const updates: any = {
+      failedLoginAttempts: 0,
+      lockoutUntil: null,
+      lastLogin: new Date().toISOString(),
+    };
+
+    if (needsRehash) {
+      const derived = await derivePasswordHash(password);
+      updates.passwordHash = derived.hash;
+      updates.salt = derived.salt;
+      updates.iterations = derived.iterations;
+    }
+
+    await db.users.update(found.id, updates);
     
     const safeUser: User = { 
       id: found.id, 
@@ -102,10 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: found.email, 
       role: found.role as Role, 
       permissions: found.permissions || { views: DEFAULT_PERMISSIONS[found.role] || [] }, 
-      plainPassword: found.plainPassword,
       assignedExecutiveName: found.assignedExecutiveName,
-      maintenanceMode: found.maintenanceMode
+      maintenanceMode: found.maintenanceMode,
     };
+
     setUser(safeUser);
     return safeUser;
   };
@@ -123,19 +157,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const addUser = async (u: Omit<User, 'id'> & { password?: string }) => {
     const id = crypto.randomUUID();
     const pw = u.password || 'Admin@123';
-    const passwordHash = await hashPassword(pw);
+    const derived = await derivePasswordHash(pw);
     const { password, ...userWithoutPassword } = u;
-    const newUser = { ...userWithoutPassword, id, plainPassword: pw };
     
-    setUsers(prev => [...prev, newUser]);
-    await db.users.put({ ...newUser, passwordHash, plainPassword: pw });
+    const newUser = { 
+      ...userWithoutPassword, 
+      id, 
+      passwordHash: derived.hash,
+      salt: derived.salt,
+      iterations: derived.iterations,
+      createdAt: new Date().toISOString(),
+    };
+    
+    setUsers(prev => [...prev, { ...userWithoutPassword, id }]);
+    await db.users.put(newUser as any);
   };
 
-  const updateUser = async (id: string, data: Partial<User>) => {
+  const updateUser = async (id: string, data: Partial<User> & { password?: string }) => {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, ...data } : u));
     const existing = await db.users.get(id);
     if (existing) {
-      await db.users.update(id, { ...existing, ...data });
+      const updatePayload: any = { ...existing, ...data };
+      if (data.password) {
+        const derived = await derivePasswordHash(data.password);
+        updatePayload.passwordHash = derived.hash;
+        updatePayload.salt = derived.salt;
+        updatePayload.iterations = derived.iterations;
+        delete updatePayload.password;
+      }
+      
+      await db.users.update(id, updatePayload);
 
       // If name changed, ripple it through the database
       if (data.name && data.name !== existing.name) {

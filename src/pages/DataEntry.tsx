@@ -48,7 +48,7 @@ export default function DataEntry() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const result = loadMainFile(e.target!.result as ArrayBuffer, file.name, user?.name || 'Unknown');
+        const result = await loadMainFile(e.target!.result as ArrayBuffer, file.name, user?.name || 'Unknown');
         toast.success(`Main data loaded — ${result.rowCount} records`);
       } catch {
         toast.error('Failed to parse file');
@@ -63,7 +63,7 @@ export default function DataEntry() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const result = loadPaidFile(e.target!.result as ArrayBuffer, file.name, user?.name || 'Unknown');
+        const result = await loadPaidFile(e.target!.result as ArrayBuffer, file.name, user?.name || 'Unknown');
         toast.success(`Paid file merged — ${result.matched} records updated`);
       } catch {
         toast.error('Failed to parse paid file');
@@ -78,7 +78,7 @@ export default function DataEntry() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const result = loadAdditionalFile(e.target!.result as ArrayBuffer, file.name, user?.name || 'Unknown');
+        const result = await loadAdditionalFile(e.target!.result as ArrayBuffer, file.name, user?.name || 'Unknown');
         const s = result.stats;
         toast.success(
           <div className="flex flex-col gap-1">
@@ -104,10 +104,12 @@ export default function DataEntry() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const result = loadCorrectedFile(e.target!.result as ArrayBuffer, file.name, user?.name || 'Unknown');
+        const result = await loadCorrectedFile(e.target!.result as ArrayBuffer, file.name, user?.name || 'Unknown');
         toast.success(`Corrected DAC merged — ${result.matched} records updated`);
       } catch {
         toast.error('Failed to parse corrected DAC file');
+      } finally {
+        setUploadingState(p => ({ ...p, corr: false }));
       }
     };
     reader.readAsArrayBuffer(file);

@@ -11,6 +11,7 @@ import { Download, Plus, Search, ArrowUp, ArrowDown, X } from 'lucide-react';
 import { Checkbox } from '../components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Link } from 'react-router-dom';
+import { BucketFilter } from '../components/BucketFilter';
 
 export default function ExecTeamPerf() {
   const navigate = useNavigate();
@@ -127,6 +128,7 @@ export default function ExecTeamPerf() {
   if (isLoading) {
     return (
       <AppLayout>
+      <div className="mb-4"><BucketFilter /></div>
         <div className="animate-pulse">
           <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>

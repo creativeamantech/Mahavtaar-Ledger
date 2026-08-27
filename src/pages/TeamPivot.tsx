@@ -10,6 +10,7 @@ import { Download, Plus, Search, ArrowUp, ArrowDown, X, Users, ChevronDown, Chev
 import { Checkbox } from '../components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { HeatBar } from '../components/ui/HeatBar';
+import { BucketFilter } from '../components/BucketFilter';
 
 // ─── Header Sort Cell ─────────────────────────────────────────────────────────
 function Th({
@@ -210,6 +211,7 @@ export default function TeamPivot() {
   if (isLoading) {
     return (
       <AppLayout>
+      <div className="mb-4"><BucketFilter /></div>
         <div className="animate-pulse space-y-4">
           <div className="h-8 w-48 rounded bg-muted"></div>
           <div className="grid grid-cols-4 gap-3">

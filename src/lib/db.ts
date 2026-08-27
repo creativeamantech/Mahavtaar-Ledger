@@ -207,21 +207,29 @@ class MahavtaarDB extends Dexie {
 
 export const db = new MahavtaarDB();
 
+import { sha256Fallback } from './authCrypto';
+
 export async function backupSystemData() {
   const records = await db.loan_records.toArray();
   const sessions = await db.upload_sessions.toArray();
   const audit = await db.audit_log.toArray();
   const targets = await db.state_targets.toArray();
   
+  const dataPayload = {
+    loan_records: records,
+    upload_sessions: sessions,
+    audit_log: audit,
+    state_targets: targets
+  };
+
+  const payloadString = JSON.stringify(dataPayload);
+  const checksum = await sha256Fallback(payloadString);
+
   const backup = {
     timestamp: new Date().toISOString(),
-    version: 1,
-    data: {
-      loan_records: records,
-      upload_sessions: sessions,
-      audit_log: audit,
-      state_targets: targets
-    }
+    version: 2,
+    checksum,
+    data: dataPayload
   };
   
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -242,4 +250,41 @@ export async function resetSystemData() {
     await db.audit_log.clear();
     await db.state_targets.clear();
   });
+}
+
+export async function restoreSystemData(fileBuffer: ArrayBuffer) {
+  try {
+    const text = new TextDecoder().decode(fileBuffer);
+    const backup = JSON.parse(text);
+    
+    if (backup.version === 2) {
+      const payloadString = JSON.stringify(backup.data);
+      const computedHash = await sha256Fallback(payloadString);
+      if (computedHash !== backup.checksum) {
+        throw new Error('Backup file is corrupted or tampered with. Checksum validation failed.');
+      }
+    }
+
+    const data = backup.data;
+    if (!data.loan_records || !data.audit_log) {
+      throw new Error('Invalid backup file format.');
+    }
+
+    await db.transaction('rw', db.loan_records, db.upload_sessions, db.audit_log, db.state_targets, async () => {
+      await db.loan_records.clear();
+      await db.upload_sessions.clear();
+      await db.audit_log.clear();
+      await db.state_targets.clear();
+
+      await db.loan_records.bulkAdd(data.loan_records);
+      await db.upload_sessions.bulkAdd(data.upload_sessions);
+      await db.audit_log.bulkAdd(data.audit_log);
+      await db.state_targets.bulkAdd(data.state_targets);
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Restore failed:', err);
+    throw new Error(err.message || 'Failed to restore backup');
+  }
 }

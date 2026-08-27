@@ -13,6 +13,7 @@ import { db } from '../lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { DateRange } from 'react-day-picker';
 import Papa from 'papaparse';
+import { ShiftAttendanceCard } from '../components/attendance/ShiftAttendanceCard';
 
 interface AttendanceRecord {
   id: string;
@@ -144,11 +145,20 @@ export default function Attendance() {
 
   return (
     <AppLayout title="Attendance Management">
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-headline font-bold tracking-tight mb-2">Attendance Management</h1>
-            <p className="text-muted-foreground">Track user login, logout, and working hours.</p>
+            <p className="text-muted-foreground">Track user login, logout, break intervals, and working hours.</p>
+          </div>
+        </div>
+
+        <ShiftAttendanceCard />
+
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2">
+          <div>
+            <h2 className="text-xl font-headline font-semibold">Attendance Log & Historical Shifts</h2>
+            <p className="text-xs text-muted-foreground">Filter by user, date range, and export reports.</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-2">

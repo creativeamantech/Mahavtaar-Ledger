@@ -80,16 +80,15 @@ export async function processCRDTIncomingEntry(
 
   // If strategy is FIELD_MERGE
   if (strategy === 'FIELD_MERGE') {
-    // If incoming is strictly newer by a comfortable threshold (> 10s difference), apply it cleanly
-    if (Math.abs(remoteTime - localTime) > 10000 && remoteTime > localTime) {
-      const merged = { ...currentLocalRecord, ...data };
-      return { applied: true, mergedData: merged, hasConflict: false };
-    }
+    // 1. Mandatory Conflict Fields (Category C)
+    const financialCriticalFields = [
+      'dac', 'provisional_dac', 'ecs', 'special', 'new_total', 'settlement_approved_amt',
+      'last_month_paid_flag', 'target_pct', 'permissions', 'role', 'status'
+    ];
+    
+    const hasCriticalCollision = diffs.some(d => financialCriticalFields.includes(d.field));
 
-    // If modifications are near-simultaneous and have divergent conflicting values on critical fields, record conflict
-    const criticalFields = ['status', 'paidSubStatus', 'amountPaid', 'approvedAmount', 'ptpDate', 'role', 'permissions', 'pct'];
-    const hasCriticalCollision = diffs.some(d => criticalFields.includes(d.field));
-
+    // If there is ANY conflicting difference in a critical financial field, we MUST quarantine it
     if (hasCriticalCollision) {
       const conflictId = `CONF-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const conflictRecord: SyncConflictRecord = {
@@ -117,9 +116,16 @@ export async function processCRDTIncomingEntry(
       };
     }
 
-    // Otherwise, clean non-conflicting field merge:
-    const merged = { ...currentLocalRecord, ...data };
-    return { applied: true, mergedData: merged, hasConflict: false };
+    // 2. Safe descriptive fields (Category A / B)
+    // For non-critical metadata (e.g., phone numbers, notes, generic flags), use LWW field-level resolution
+    if (remoteTime >= localTime) {
+      const merged = { ...currentLocalRecord, ...data };
+      return { applied: true, mergedData: merged, hasConflict: false };
+    } else {
+      // Local is newer, keep local fields but allow remote to backfill missing fields
+      const merged = { ...data, ...currentLocalRecord };
+      return { applied: false, mergedData: merged, hasConflict: false };
+    }
   }
 
   // Fallback default: LWW

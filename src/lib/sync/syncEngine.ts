@@ -290,7 +290,7 @@ export class SyncEngine {
 
   private async onHandshakeAckReceived(msg: SyncMessageEnvelope) {
     const { isApproved, deviceInfo, userSession } = msg.payload || {};
-    let peer = await db.sync_peers.get(msg.senderPeerId);
+    const peer = await db.sync_peers.get(msg.senderPeerId);
 
     if (peer) {
       peer.lastSeen = new Date().toISOString();
@@ -319,7 +319,7 @@ export class SyncEngine {
   }
 
   private async onHeartbeatReceived(msg: SyncMessageEnvelope) {
-    let peer = await db.sync_peers.get(msg.senderPeerId);
+    const peer = await db.sync_peers.get(msg.senderPeerId);
     if (peer) {
       peer.lastSeen = new Date().toISOString();
       await db.sync_peers.put(peer);
@@ -383,7 +383,7 @@ export class SyncEngine {
 
   private async onPairingResponseReceived(msg: SyncMessageEnvelope) {
     const { approved, approvedBy } = msg.payload || {};
-    let peer = await db.sync_peers.get(msg.senderPeerId);
+    const peer = await db.sync_peers.get(msg.senderPeerId);
     if (peer && approved) {
       peer.status = 'APPROVED';
       peer.approvedAt = new Date().toISOString();
@@ -413,7 +413,15 @@ export class SyncEngine {
 
       if (mergeResult.applied) {
         if (entry.action === 'DELETE') {
-          await table.delete(entry.recordId);
+          if (currentRecord) {
+            await table.put({ 
+              ...currentRecord, 
+              status: 'DELETED', 
+              isDeleted: true, 
+              deletedAt: new Date().toISOString(),
+              deletedByRemotePeer: msg.senderPeerId 
+            });
+          }
         } else {
           await table.put(mergeResult.mergedData);
         }

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useMemo } from "react";
 import { AppLayout } from "../components/layout/AppLayout";
+import { BucketFilter } from "../components/BucketFilter";
 import { useData } from "../contexts/DataContext";
 import { useAuth } from "../contexts/AuthContext";
 import { fmtCur } from "../lib/formatters";
@@ -468,6 +469,7 @@ export default function Assignment() {
 
   return (
     <AppLayout>
+      <div className="mb-4"><BucketFilter /></div>
       {/* Header & Controls */}
       <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div>

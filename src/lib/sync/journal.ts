@@ -1,6 +1,7 @@
 import { db, SyncJournalRecord } from '../db';
 import { getLocalDeviceIdentity } from './deviceIdentity';
 import { JournalEntry, TableSyncName } from './types';
+import { sha256Fallback } from '../authCrypto';
 
 const LAMPORT_KEY = 'mahavtaar_lamport_clock_v1';
 
@@ -16,15 +17,9 @@ export function incrementLamportClock(receivedClock?: number): number {
   return next;
 }
 
-function calculateSimpleHash(data: any): string {
+export async function calculateJournalHash(data: any): Promise<string> {
   const str = typeof data === 'string' ? data : JSON.stringify(data || {});
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(16).padStart(8, '0');
+  return await sha256Fallback(str);
 }
 
 export async function recordJournalChange(
@@ -38,7 +33,7 @@ export async function recordJournalChange(
   const lamport = incrementLamportClock();
   const timestamp = new Date().toISOString();
   const id = `JRN-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-  const hash = calculateSimpleHash({ tableName, recordId, action, data, timestamp });
+  const hash = await calculateJournalHash({ tableName, recordId, action, data, timestamp });
 
   const entry: SyncJournalRecord = {
     id,

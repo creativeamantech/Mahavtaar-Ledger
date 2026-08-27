@@ -2,6 +2,8 @@ import { createContext, useContext, useState, ReactNode, useCallback, useEffect,
 import { parseMainFile, parsePaidFile, mergePaidIntoRecords, parseAdditionalFile, mergeAdditionalIntoRecords, parseCorrectedFile, mergeCorrectedIntoRecords } from '../lib/fileParser';
 import { db, AuditEntry, UploadSession } from '../lib/db';
 import { useAuth } from './AuthContext';
+import { atomicFileImport, atomicUpdateLoanRecord, atomicBulkUpdateLoanRecords } from '../lib/repositories/loanRepository';
+import { setTargetRecord, deleteTargetRecord } from '../lib/repositories/targetRepository';
 
 interface DataContextType {
   isLoading: boolean;
@@ -30,34 +32,6 @@ const DataContext = createContext<DataContextType | null>(null);
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [records, setRecords] = useState<any[]>([]);
-
-  const exposedRecords = useMemo(() => {
-    if (!user) return records;
-    if (user.role === 'EXECUTIVE') {
-      const targetNames = [
-        user.assignedExecutiveName ? String(user.assignedExecutiveName).trim().toLowerCase() : null,
-        user.name ? String(user.name).trim().toLowerCase() : null
-      ].filter(Boolean) as string[];
-
-      return records.filter(r => {
-        const rawExec = String(
-          r.executive_name || 
-          r['Executive Name'] || 
-          r.EXECUTIVE_NAME || 
-          r.FOS_Name || 
-          r['FOS Name'] || 
-          r.fos || 
-          r.FOS || 
-          r.executive || 
-          ''
-        ).trim().toLowerCase();
-        
-        if (!rawExec) return false;
-        return targetNames.some(target => rawExec === target || rawExec.includes(target) || target.includes(rawExec));
-      });
-    }
-    return records;
-  }, [records, user]);
 
   const [schema, setSchema] = useState<string[]>([]);
   const [targets, setTargets] = useState<Record<string, number>>({});
@@ -116,8 +90,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }, {} as Record<string, number>);
         setTargets(targetsMap);
         
-        // 3. Load records
-        const dbRecords = await db.loan_records.toArray();
+        // 3. Load authorized records (Enforcing Executive Scope at Repository boundary)
+        const { fetchAuthorizedLoanRecords } = await import('../lib/repositories/loanRepository');
+        const dbRecords = await fetchAuthorizedLoanRecords(user);
         setRecords(dbRecords);
         
         // 4. Load history and audit logs
@@ -133,84 +108,78 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     }
     loadData();
-  }, []);
+  }, [user]);
 
   const loadMainFile = useCallback(async (buffer: ArrayBuffer, fileName: string, userName: string) => {
     const parsed = parseMainFile(buffer);
-    setRecords(parsed);
     const entry = { id: crypto.randomUUID(), type: 'MAIN_DATA', fileName, recordCount: parsed.length, uploadedBy: userName, createdAt: new Date().toISOString() };
     setUploadHistory(prev => [entry, ...prev]);
     
-    await db.loan_records.bulkPut(parsed);
-    await db.upload_sessions.put(entry);
+    await atomicFileImport(parsed, entry as UploadSession);
+    
+    const { fetchAuthorizedLoanRecords } = await import('../lib/repositories/loanRepository');
+    const dbRecords = await fetchAuthorizedLoanRecords(user);
+    setRecords(dbRecords);
     
     return { rowCount: parsed.length };
-  }, []);
+  }, [user]);
 
   const loadPaidFile = useCallback(async (buffer: ArrayBuffer, fileName: string, userName: string) => {
     const paidRows = parsePaidFile(buffer);
     let matched = 0;
-    let mergedData: any[] = [];
     
-    setRecords(prev => {
-      mergedData = mergePaidIntoRecords(prev, paidRows);
-      matched = paidRows.filter(p => prev.some(r => r.agreementid === p.agreementid)).length;
-      return mergedData;
-    });
+    const allDbRecords = await db.loan_records.toArray();
+    const mergedData = mergePaidIntoRecords(allDbRecords, paidRows);
+    matched = paidRows.filter(p => allDbRecords.some(r => r.agreementid === p.agreementid)).length;
     
     const entry = { id: crypto.randomUUID(), type: 'PAID_FILE', fileName, recordCount: paidRows.length, uploadedBy: userName, createdAt: new Date().toISOString() };
     setUploadHistory(prev => [entry, ...prev]);
     
-    // Use bulkPut to update the matched records
-    await db.loan_records.bulkPut(mergedData);
-    await db.upload_sessions.put(entry);
+    await atomicFileImport(mergedData, entry as UploadSession);
+    
+    const { fetchAuthorizedLoanRecords } = await import('../lib/repositories/loanRepository');
+    const dbRecords = await fetchAuthorizedLoanRecords(user);
+    setRecords(dbRecords);
     
     return { matched, total: paidRows.length }; 
-  }, []);
+  }, [user]);
 
   const loadAdditionalFile = useCallback(async (buffer: ArrayBuffer, fileName: string, userName: string) => {
     const additionalRows = parseAdditionalFile(buffer);
-    let matched = 0;
-    let finalStats: any = {};
-    let mergedData: any[] = [];
     
-    setRecords(prev => {
-      const { merged, stats } = mergeAdditionalIntoRecords(prev, additionalRows);
-      mergedData = merged;
-      matched = additionalRows.filter(p => prev.some(r => r.agreementid === p.agreementid)).length;
-      finalStats = stats;
-      return merged;
-    });
+    const allDbRecords = await db.loan_records.toArray();
+    const { merged, stats } = mergeAdditionalIntoRecords(allDbRecords, additionalRows);
+    const matched = additionalRows.filter(p => allDbRecords.some(r => r.agreementid === p.agreementid)).length;
     
     const entry = { id: crypto.randomUUID(), type: 'ADDITIONAL_COLLECTION_FILE', fileName, recordCount: additionalRows.length, uploadedBy: userName, createdAt: new Date().toISOString() };
     setUploadHistory(prev => [entry, ...prev]);
     
-    await db.loan_records.bulkPut(mergedData);
-    await db.upload_sessions.put(entry);
+    await atomicFileImport(merged, entry as UploadSession);
     
-    return { matched, total: additionalRows.length, stats: finalStats };
-  }, []);
+    const { fetchAuthorizedLoanRecords } = await import('../lib/repositories/loanRepository');
+    const dbRecords = await fetchAuthorizedLoanRecords(user);
+    setRecords(dbRecords);
+    
+    return { matched, total: additionalRows.length, stats };
+  }, [user]);
 
   const loadCorrectedFile = useCallback(async (buffer: ArrayBuffer, fileName: string, userName: string) => {
     const correctedRows = parseCorrectedFile(buffer);
-    let matchCount = 0;
-    let mergedData: any[] = [];
     
-    setRecords(prev => {
-      const { merged, matched } = mergeCorrectedIntoRecords(prev, correctedRows);
-      mergedData = merged;
-      matchCount = matched;
-      return merged;
-    });
+    const allDbRecords = await db.loan_records.toArray();
+    const { merged, matched } = mergeCorrectedIntoRecords(allDbRecords, correctedRows);
     
     const entry = { id: crypto.randomUUID(), type: 'CORRECTED_DAC_FILE', fileName, recordCount: correctedRows.length, uploadedBy: userName, createdAt: new Date().toISOString() };
     setUploadHistory(prev => [entry, ...prev]);
     
-    await db.loan_records.bulkPut(mergedData);
-    await db.upload_sessions.put(entry);
+    await atomicFileImport(merged, entry as UploadSession);
     
-    return { matched: matchCount, total: correctedRows.length };
-  }, []);
+    const { fetchAuthorizedLoanRecords } = await import('../lib/repositories/loanRepository');
+    const dbRecords = await fetchAuthorizedLoanRecords(user);
+    setRecords(dbRecords);
+    
+    return { matched, total: correctedRows.length };
+  }, [user]);
 
   const updateRecord = useCallback(async (agreementid: string, field: string, value: any, userName: string) => {
     let oldVal = '';
@@ -236,11 +205,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     
     setAuditLog(a => [audit, ...a]);
     
-    await db.loan_records.update(agreementid, { [field]: value, [`${field}_source`]: 'MANUAL' });
-    await db.audit_log.put(audit);
+    await atomicUpdateLoanRecord(
+      agreementid,
+      { [field]: value, [`${field}_source`]: 'MANUAL' },
+      { userName, userRole: user?.role || 'VIEWER', source: 'MANUAL' }
+    );
+    
     setUndoStack(prev => [...prev, { type: 'UPDATE', audits: [audit] }]);
     setRedoStack([]);
-  }, []);
+  }, [user]);
 
 
   const bulkUpdateRecords = useCallback(async (updates: {agreementid: string, field: string, value: any}[], userName: string) => {
@@ -254,8 +227,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateMap.get(u.agreementid)[u.field] = u.value;
       updateMap.get(u.agreementid)[`${u.field}_source`] = 'MANUAL';
     });
-
-    const updatedRecords: any[] = [];
 
     setRecords(prev => {
       const next = prev.map(r => {
@@ -277,7 +248,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
             }
           });
           
-          updatedRecords.push({ ...r, ...u });
           return { ...r, ...u };
         }
         return r;
@@ -287,25 +257,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     setAuditLog(a => [...newAudits, ...a]);
 
-    await db.loan_records.bulkPut(updatedRecords);
-    await db.audit_log.bulkPut(newAudits);
+    const formattedUpdates = Array.from(updateMap.entries()).map(([agreementId, upds]) => ({
+      agreementId,
+      updates: upds
+    }));
+
+    await atomicBulkUpdateLoanRecords(
+      formattedUpdates,
+      { userName, userRole: user?.role || 'VIEWER', source: 'BULK_OPERATION' }
+    );
+
     setUndoStack(prev => [...prev, { type: 'BULK_UPDATE', audits: newAudits }]);
     setRedoStack([]);
-  }, []);
+  }, [user]);
 
-  const setTarget = useCallback(async (key: string, pct: number, _userName: string) => {
+  const setTarget = useCallback(async (key: string, pct: number, userName: string) => {
+    const actor = userName || user?.name || 'System';
     if (pct <= 0) {
       setTargets(prev => {
         const next = { ...prev };
         delete next[key];
         return next;
       });
-      await db.state_targets.delete(key);
+      await deleteTargetRecord(key, actor);
     } else {
       setTargets(prev => ({ ...prev, [key]: pct }));
-      await db.state_targets.put({ key, pct, updatedAt: new Date().toISOString() });
+      await setTargetRecord(key, pct, actor);
     }
-  }, []);
+  }, [user]);
 
   
   const undo = useCallback(async () => {
@@ -314,7 +293,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setUndoStack(prev => prev.slice(0, -1));
     setRedoStack(prev => [...prev, action]);
 
-    const updatedRecords: any[] = [];
     const updateMap = new Map();
     action.audits.forEach(a => {
       if (!updateMap.has(a.agreementid)) updateMap.set(a.agreementid, {});
@@ -326,18 +304,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return prev.map(r => {
         if (updateMap.has(r.agreementid)) {
           const u = updateMap.get(r.agreementid);
-          const next = { ...r, ...u };
-          updatedRecords.push(next);
-          return next;
+          return { ...r, ...u };
         }
         return r;
       });
     });
 
-    if (updatedRecords.length > 0) {
-      await db.loan_records.bulkPut(updatedRecords);
+    if (updateMap.size > 0) {
+      const formattedUpdates = Array.from(updateMap.entries()).map(([agreementId, upds]) => ({
+        agreementId,
+        updates: upds
+      }));
+      await atomicBulkUpdateLoanRecords(
+        formattedUpdates,
+        { userName: user?.name || 'Unknown', userRole: user?.role || 'VIEWER', source: 'MANUAL' }
+      );
     }
-  }, [undoStack]);
+  }, [undoStack, user]);
 
   const redo = useCallback(async () => {
     if (redoStack.length === 0) return;
@@ -345,7 +328,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setRedoStack(prev => prev.slice(0, -1));
     setUndoStack(prev => [...prev, action]);
 
-    const updatedRecords: any[] = [];
     const updateMap = new Map();
     action.audits.forEach(a => {
       if (!updateMap.has(a.agreementid)) updateMap.set(a.agreementid, {});
@@ -357,21 +339,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return prev.map(r => {
         if (updateMap.has(r.agreementid)) {
           const u = updateMap.get(r.agreementid);
-          const next = { ...r, ...u };
-          updatedRecords.push(next);
-          return next;
+          return { ...r, ...u };
         }
         return r;
       });
     });
 
-    if (updatedRecords.length > 0) {
-      await db.loan_records.bulkPut(updatedRecords);
+    if (updateMap.size > 0) {
+      const formattedUpdates = Array.from(updateMap.entries()).map(([agreementId, upds]) => ({
+        agreementId,
+        updates: upds
+      }));
+      await atomicBulkUpdateLoanRecords(
+        formattedUpdates,
+        { userName: user?.name || 'Unknown', userRole: user?.role || 'VIEWER', source: 'MANUAL' }
+      );
     }
-  }, [redoStack]);
+  }, [redoStack, user]);
 
   return (
-    <DataContext.Provider value={{ undo, redo, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0,  isLoading, records: exposedRecords, schema, targets, auditLog, uploadHistory, loadMainFile, loadPaidFile, loadAdditionalFile, loadCorrectedFile, updateRecord, bulkUpdateRecords, setTarget, globalBucket, setGlobalBucket }}>
+    <DataContext.Provider value={{ undo, redo, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0,  isLoading, records, schema, targets, auditLog, uploadHistory, loadMainFile, loadPaidFile, loadAdditionalFile, loadCorrectedFile, updateRecord, bulkUpdateRecords, setTarget, globalBucket, setGlobalBucket }}>
       {children}
     </DataContext.Provider>
   );

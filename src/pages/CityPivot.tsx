@@ -10,6 +10,7 @@ import { Download, Search, ArrowUp, ArrowDown, X, Plus, TrendingUp, Target, Wall
 import { Checkbox } from '../components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { HeatBar, getHeatmapCellClass } from '../components/ui/HeatBar';
+import { BucketFilter } from '../components/BucketFilter';
 
 // Design tokens
 const C = {
@@ -215,6 +216,7 @@ export default function CityPivot() {
 
   return (
     <AppLayout>
+      <div className="mb-4"><BucketFilter /></div>
       <div className="space-y-4">
         {/* Page Title & Actions */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border">

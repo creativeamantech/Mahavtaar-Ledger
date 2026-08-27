@@ -8,6 +8,7 @@ import { fmtCur, fmtPct } from '../lib/formatters';
 import { DollarSign, AlertCircle, Database, BarChart3, TrendingUp, Download, Target } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ComposedChart, Line } from 'recharts';
 import { ProgressRing, TargetProgressCard } from '../components/dashboard/TargetProgressCard';
+import { BucketFilter } from '../components/BucketFilter';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -219,6 +220,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <AppLayout>
+      <div className="mb-4"><BucketFilter /></div>
         <div className="flex h-[50vh] items-center justify-center text-muted-foreground animate-pulse">
           Loading dashboard metrics...
         </div>
@@ -511,11 +513,6 @@ export default function Dashboard() {
                <Download className="h-3.5 w-3.5" /> Export Full Data
              </button>
           </div>
-          {false && (
-            <div className="p-3 text-center text-xs text-muted-foreground border-t border-border bg-muted/10">
-              Showing top 50 of {stats.cityData.length} cities
-            </div>
-          )}
         </div>
       </div>
       

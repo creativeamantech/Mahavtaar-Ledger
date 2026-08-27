@@ -9,6 +9,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Link } from 'react-router-dom';
 import { Slider } from '../components/ui/slider';
+import { BucketFilter } from '../components/BucketFilter';
 
 export default function BandExplorer() {
   const navigate = useNavigate();
@@ -169,6 +170,7 @@ export default function BandExplorer() {
   if (isLoading) {
     return (
       <AppLayout>
+      <div className="mb-4"><BucketFilter /></div>
         <div className="flex h-[50vh] items-center justify-center text-muted-foreground animate-pulse">
           Loading bandwidth data...
         </div>
