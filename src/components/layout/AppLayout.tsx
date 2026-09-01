@@ -8,7 +8,12 @@ import { useMediaQuery } from '../../hooks/use-media-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
 
-export function AppLayout({ children }: { children: ReactNode }) {
+interface AppLayoutProps {
+  children: ReactNode;
+  title?: string;
+}
+
+export function AppLayout({ children }: AppLayoutProps) {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [collapsed, setCollapsed] = useState(!isDesktop);
   const { logout, user } = useAuth();

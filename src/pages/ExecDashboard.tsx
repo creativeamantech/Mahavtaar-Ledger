@@ -1,15 +1,53 @@
 import { Fragment, useState, useMemo } from 'react';
-import { useData } from '../contexts/DataContext';
+import { useDataState } from '../contexts/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
 import { useMediaQuery } from '../hooks/use-media-query';
 import { calculateRow } from '../lib/calculations';
-import { buildExecCityPivot } from '../lib/pivots';
+import { useWorkerPivot } from '../hooks/useWorkerPivot';
+import { buildExecCityPivot, ExecCityPivotRow } from '../lib/pivots';
 import { fmtCur, fmtPct, pctColor } from '../lib/formatters';
 import { DollarSign, AlertCircle, Database, BarChart3, TrendingUp, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ComposedChart, Line } from 'recharts';
 import { AgentLiveDashboard } from '../components/agent/AgentLiveDashboard';
-import { BucketFilter } from '../components/BucketFilter';
+import { BucketFilter, FloatingBucketFilter } from '../components/BucketFilter';
+import { LoanRecord } from '../types/domain';
+
+type ExecCityPivotItem = ExecCityPivotRow & { globalRank?: number };
+
+interface BucketStats {
+  collection: number;
+  cases: number;
+  pos: number;
+  teamPaid: number;
+  posPaidOnly: number;
+  unpaid: number;
+  paidPOS: number;
+  posPaidOnlyPOS: number;
+  unpaidPOS: number;
+}
+
+interface CityBucketStats {
+  teamPaid: number;
+  posPaidOnly: number;
+  unpaid: number;
+  paidPOS: number;
+  posPaidOnlyPOS: number;
+  unpaidPOS: number;
+}
+
+interface CityStats {
+  cases: number;
+  pos: number;
+  teamPaid: number;
+  posPaidOnly: number;
+  unpaid: number;
+  paidPOS: number;
+  posPaidOnlyPOS: number;
+  unpaidPOS: number;
+  buckets: Record<string, CityBucketStats>;
+  bands: Record<string, { cases: number; pos: number }>;
+}
 
 export default function ExecDashboard() {
   const navigate = useNavigate();
@@ -26,21 +64,26 @@ export default function ExecDashboard() {
     });
   };
   
-  const { records, isLoading, globalBucket, targets } = useData();
+  const { records, isLoading, globalBucket, targets } = useDataState();
 
   const filteredRecords = useMemo(() => {
     if (!records) return [];
     if (globalBucket === 'ALL') return records;
-    return records.filter((r: any) => String(r.bom_bkt).trim().toUpperCase() === globalBucket);
+    return records.filter((r: LoanRecord) => String(r.bom_bkt).trim().toUpperCase() === globalBucket);
   }, [records, globalBucket]);
   const teamPerfData = useMemo(() => buildExecCityPivot(filteredRecords, targets), [filteredRecords, targets]);
   const teamPerfGrouped = useMemo(() => {
-    const groups: Record<number, any[]> = {};
+    const groups: Record<number, ExecCityPivotItem[]> = {};
     teamPerfData.forEach(t => {
-      if (!groups[t.bkt]) groups[t.bkt] = [];
-      groups[t.bkt].push(t);
+      const bktNum = Number(t.bkt) || 0;
+      if (!groups[bktNum]) groups[bktNum] = [];
+      groups[bktNum].push(t);
     });
-    return Object.entries(groups).map(([bkt, items]) => [Number(bkt), items.sort((a: any, b: any) => b.collection - a.collection)] as const).sort((a, b) => a[0] - b[0]);
+    return Object.entries(groups).map(([bkt, items]) => {
+      const sorted = items.sort((a, b) => b.collection - a.collection);
+      const itemsWithRank = sorted.map((item, idx) => ({ ...item, globalRank: idx + 1 }));
+      return [Number(bkt), itemsWithRank] as const;
+    }).sort((a, b) => a[0] - b[0]);
   }, [teamPerfData]);
   const teamPerfGrandTotal = useMemo(() => {
     return {
@@ -61,15 +104,15 @@ export default function ExecDashboard() {
     let teamPaidPosSum = 0;
     let posPaidOnlyPosSum = 0;
     
-    const byBucket: Record<string, any> = {};
-    const byCity: Record<string, any> = {};
+    const byBucket: Record<string, BucketStats> = {};
+    const byCity: Record<string, CityStats> = {};
     
     let smallCasesEMI = 0;
     let smallCasesPOS = 0;
     let totalSmallCases = 0;
     let smallCasesBoth = 0;
     
-    filteredRecords.forEach((row: any) => {
+    filteredRecords.forEach((row: LoanRecord) => {
         const c = calculateRow(row);
         const bucket = String(row.bom_bkt || 'Unknown').trim();
         const city = String(row.city || row.City || 'Unknown').trim().toUpperCase();
@@ -112,8 +155,8 @@ export default function ExecDashboard() {
             byCity[city] = { 
                 cases: 0, pos: 0, teamPaid: 0, posPaidOnly: 0, unpaid: 0, 
                 paidPOS: 0, posPaidOnlyPOS: 0, unpaidPOS: 0,
-                buckets: {} as Record<string, any>, 
-                bands: {} as Record<string, { cases: number, pos: number }> 
+                buckets: {}, 
+                bands: {} 
             };
         }
         byCity[city].cases++;
@@ -159,7 +202,7 @@ export default function ExecDashboard() {
     const cityData = Object.keys(byCity).map(k => ({ city: k, ...byCity[k] })).sort((a,b) => b.cases !== a.cases ? b.cases - a.cases : b.pos - a.pos);
 
     const allBands = new Set<string>();
-    filteredRecords.forEach((row: any) => {
+    filteredRecords.forEach((row: LoanRecord) => {
         const pos = Number(row.principal_outstanding) || 0;
         if (pos < 1000) allBands.add('< 1k');
         else if (pos < 10000) {
@@ -196,8 +239,6 @@ export default function ExecDashboard() {
     return { cases, pos };
   }, [selectedCells, stats.cityData]);
 
-
-
   const getBandRange = (band: string) => {
     if (band === '< 1k') return { min: 0, max: 999.99 };
     const parts = band.split('-');
@@ -232,166 +273,20 @@ export default function ExecDashboard() {
         <div className="flex h-[50vh] items-center justify-center text-muted-foreground animate-pulse">
           Loading dashboard metrics...
         </div>
-  
-      {selectedCells.size > 0 && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className="bg-foreground text-background px-6 py-4 rounded-xl shadow-2xl flex items-center gap-6 font-medium">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center justify-center bg-background/20 text-background rounded-full w-8 h-8 font-bold text-sm">
-                {selectedCells.size}
-              </span>
-              <span>Cells Selected</span>
-            </div>
-            <div className="w-px h-6 bg-background/20"></div>
-            <div className="flex flex-col">
-              <span className="text-xs text-background/70 uppercase tracking-wider">Total Cases</span>
-              <span className="font-bold text-lg leading-none">{selectionStats.cases.toLocaleString()}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-background/70 uppercase tracking-wider">Total POS</span>
-              <span className="font-bold text-lg leading-none">{fmtCur(selectionStats.pos)}</span>
-            </div>
-            <div className="w-px h-6 bg-background/20 ml-2"></div>
-            <button 
-              onClick={() => setSelectedCells(new Set())}
-              className="text-sm px-3 py-1.5 rounded-lg hover:bg-background/20 transition-colors ml-2"
-            >
-              Clear Selection
-            </button>
-          </div>
-        </div>
-      )}
-      {/* Performance-Based Paid Cases */}
-      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mb-8">
-        <div className="p-4 border-b border-border bg-muted/20">
-          <h3 className="font-semibold flex items-center gap-2">Performance-Based Paid Cases</h3>
-          <p className="text-xs text-muted-foreground mt-1">Detailed performance tracking against collection targets</p>
-        </div>
-        <div className="overflow-x-auto max-h-[600px] relative">
-          <table className="w-full font-sans text-xs min-w-[1000px]">
-            <thead className="sticky top-0 z-30 bg-muted border-b border-border shadow-sm">
-              <tr>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-center w-12 bg-muted/90 text-xs uppercase text-[10px]">Rank</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-left uppercase tracking-wider text-[11px] bg-muted/90">City</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Collection</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Total Cases</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Paid Count</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">POS Paid Only Count</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Total POS</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Paid POS</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Needed / DRR</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Target Date</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">DRR</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">POS Paid Only POS</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Total %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {teamPerfGrouped.map(([bkt, items]) => {
-                const sub = {
-                  collection: items.reduce((s: number, i: any) => s + i.collection, 0),
-                  count: items.reduce((s: number, i: any) => s + i.count, 0),
-                  paid: items.reduce((s: number, i: any) => s + i.paid, 0),
-                  totalPOS: items.reduce((s: number, i: any) => s + i.totalPOS, 0),
-                  paidPOS: items.reduce((s: number, i: any) => s + i.paidPOS, 0),
-                  posPaidOnlyCount: items.reduce((s: number, i: any) => s + i.posPaidOnlyCount, 0),
-                  posPaidOnlyPOS: items.reduce((s: number, i: any) => s + i.posPaidOnlyPOS, 0),
-                  target: items.reduce((s: number, i: any) => s + i.target, 0),
-                  dailyRequiredPOS: items.reduce((s: number, i: any) => s + (i.dailyRequiredPOS || 0), 0),
-                };
-                const subPct = sub.totalPOS ? sub.paidPOS / sub.totalPOS : 0;
-                return (
-                  <Fragment key={bkt}>
-                    <tr className="bg-primary/10 border-b border-border">
-                      <td colSpan={13} className="px-3 py-2.5 font-sans text-[11px] font-bold text-primary uppercase tracking-[0.1em]">BUCKET {bkt}</td>
-                    </tr>
-                    {items.map((item: any) => (
-                      <tr key={item.city} className="border-b border-border transition-colors hover:bg-muted/30">
-                        <td className="px-3 py-2 text-center font-bold text-muted-foreground text-xs">{item.globalRank}</td>
-                        <td className="px-3 py-2 font-medium cursor-pointer hover:text-primary transition-colors hover:underline" onClick={() => navigateToExplorer({ city: item.city })}>{item.city}</td>
-                        <td className="px-3 py-2 text-right text-primary font-tabular-nums font-semibold">{fmtCur(item.collection)}</td>
-                        <td className="px-3 py-2 text-right cursor-pointer hover:text-primary transition-colors hover:bg-primary/5" onClick={() => navigateToExplorer({ city: item.city })}>{item.count}</td>
-                        <td className="px-3 py-2 text-right font-tabular-nums font-medium text-emerald-600 dark:text-emerald-400 cursor-pointer hover:bg-success/10 transition-colors" onClick={() => navigateToExplorer({ city: item.city })}>{item.paid}</td>
-                        <td className="px-3 py-2 text-right font-tabular-nums font-medium text-blue-600 dark:text-blue-400 cursor-pointer hover:bg-info/10 transition-colors" onClick={() => navigateToExplorer({ city: item.city })}>{item.posPaidOnlyCount}</td>
-                        <td className="px-3 py-2 text-right font-tabular-nums">{fmtCur(item.totalPOS)}</td>
-                        <td className="px-3 py-2 text-right font-tabular-nums text-emerald-600 dark:text-emerald-400 cursor-pointer hover:bg-success/10 transition-colors" onClick={() => navigateToExplorer({ city: item.city })}>{fmtCur(item.paidPOS)}</td>
-                        <td className="px-3 py-2 text-right">{item.target <= 0 ? <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase">Achieved</span> : <span className="text-rose-600 dark:text-rose-400 font-tabular-nums font-bold tracking-tight">{fmtCur(item.target)}</span>}</td>
-                        <td className="px-3 py-2 text-right text-xs text-muted-foreground">{item.targetDate || "-"}</td>
-                        <td className="px-3 py-2 text-right font-tabular-nums font-bold tracking-tight text-amber-600">{fmtCur(item.dailyRequiredPOS || 0)}</td>
-                        <td className="px-3 py-2 text-right font-tabular-nums font-medium text-blue-600 dark:text-blue-400 cursor-pointer hover:bg-info/10 transition-colors" onClick={() => navigateToExplorer({ city: item.city })}>{fmtCur(item.posPaidOnlyPOS)}</td>
-                        <td className={`px-3 py-2 text-right font-tabular-nums font-bold ${pctColor(item.pct)}`}>{fmtPct(item.pct)}</td>
-                      </tr>
-                    ))}
-                    <tr className="border-b border-border bg-muted/10 font-medium">
-                      <td className="px-3 py-2 text-center"></td>
-                      <td className="px-3 py-2.5 text-muted-foreground uppercase text-xs tracking-wider">Bucket {bkt} Total</td>
-                      <td className="px-3 py-2 text-right text-primary">{fmtCur(sub.collection)}</td>
-                      <td className="px-3 py-2 text-right">{sub.count}</td>
-                      <td className="px-3 py-2 text-right font-tabular-nums font-medium text-emerald-600 dark:text-emerald-400">{sub.paid}</td>
-                      <td className="px-3 py-2 text-right font-tabular-nums font-medium text-blue-600 dark:text-blue-400">{sub.posPaidOnlyCount}</td>
-                      <td className="px-3 py-2 text-right">{fmtCur(sub.totalPOS)}</td>
-                      <td className="px-3 py-2 text-right">{fmtCur(sub.paidPOS)}</td>
-                      <td className="px-3 py-2 text-right">{sub.target <= 0 ? <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase">Achieved</span> : <span className="text-rose-600 dark:text-rose-400 font-tabular-nums font-bold tracking-tight">{fmtCur(sub.target)}</span>}</td>
-                      <td className="px-3 py-2 text-right text-xs text-muted-foreground">-</td>
-                      <td className="px-3 py-2 text-right font-tabular-nums font-bold tracking-tight text-amber-600">{fmtCur(sub.dailyRequiredPOS || 0)}</td>
-                      <td className="px-3 py-2 text-right font-tabular-nums font-medium text-blue-600 dark:text-blue-400">{fmtCur(sub.posPaidOnlyPOS)}</td>
-                      <td className={`px-3 py-2 text-right ${pctColor(subPct)}`}>{fmtPct(subPct)}</td>
-                    </tr>
-                  </Fragment>
-                );
-              })}
-            </tbody>
-            <tfoot className="bg-primary/10 font-bold sticky bottom-0 z-20 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-primary/20 transition-colors" onClick={() => navigateToExplorer({})}>
-              <tr>
-                <td className="px-3 py-2 text-center"></td>
-                <td className="px-3 py-2.5 font-bold uppercase text-primary">Grand Total</td>
-                <td className="px-3 py-2.5 text-right text-primary font-tabular-nums">{fmtCur(teamPerfGrandTotal.collection)}</td>
-                <td className="px-3 py-2.5 text-right font-tabular-nums">{teamPerfGrandTotal.count}</td>
-                <td className="px-3 py-2.5 text-right font-tabular-nums text-emerald-600 dark:text-emerald-400">{teamPerfGrandTotal.paid}</td>
-                <td className="px-3 py-2.5 text-right font-tabular-nums text-blue-600 dark:text-blue-400">{teamPerfGrandTotal.posPaidOnlyCount}</td>
-                <td className="px-3 py-2.5 text-right font-tabular-nums">{fmtCur(teamPerfGrandTotal.totalPOS)}</td>
-                <td className="px-3 py-2.5 text-right font-tabular-nums text-emerald-600 dark:text-emerald-400">{fmtCur(teamPerfGrandTotal.paidPOS)}</td>
-                <td className="px-3 py-2.5 text-right">
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-rose-600 dark:text-rose-400 font-tabular-nums font-bold tracking-tight">{fmtCur(teamPerfGrandTotal.target)}</span>
-                  </div>
-                </td>
-                <td className="px-3 py-2.5 text-right text-xs text-muted-foreground">-</td>
-                <td className="px-3 py-2.5 text-right">
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[10px] font-tabular-nums font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900/50 px-1.5 py-0.5 rounded-sm shadow-sm">DRR: {fmtCur(teamPerfGrandTotal.dailyRequiredPOS || 0)}/d</span>
-                  </div>
-                </td>
-                <td className="px-3 py-2.5 text-right font-tabular-nums text-blue-600 dark:text-blue-400">{fmtCur(teamPerfGrandTotal.posPaidOnlyPOS)}</td>
-                <td className={"px-3 py-2.5 text-right font-tabular-nums " + pctColor(teamPerfGrandTotal.totalPOS ? teamPerfGrandTotal.paidPOS / teamPerfGrandTotal.totalPOS : 0)}>
-                  {fmtPct(teamPerfGrandTotal.totalPOS ? teamPerfGrandTotal.paidPOS / teamPerfGrandTotal.totalPOS : 0)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        <div className="p-3 border-t border-border bg-muted/10 text-right">
-          <button onClick={() => {
-            const headerRow = "Bucket,Rank,City,Collection,Total Cases,Paid Count,POS Paid Only Count,Total POS,Paid POS,Needed/DRR,Target Date,DRR,POS Paid Only POS,Total %";
-            const csv = [headerRow, ...teamPerfData.map((item: any) => `"${item.bkt}","${item.globalRank}","${item.city}",${item.collection},${item.count},${item.paid},${item.posPaidOnlyCount},${item.totalPOS},${item.paidPOS},${item.target},"${item.targetDate || ''}",${item.dailyRequiredPOS || 0},${item.posPaidOnlyPOS},${item.pct}`)].join("\n");
-            const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "Performance_Paid_Cases.csv"; a.click();
-          }} className="inline-flex items-center gap-1.5 text-xs font-bold bg-card border border-border px-3 py-1.5 rounded hover:bg-muted text-primary transition-colors">
-            <Download className="h-3.5 w-3.5" /> Export Data
-          </button>
-</div></div></AppLayout>
-
+      </AppLayout>
     );
   }
 
   return (
     <AppLayout>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-sans text-2xl font-extrabold uppercase tracking-wide flex items-center gap-2">
             <BarChart3 className="h-6 w-6 text-primary" /> Executive Dashboard
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Live agent metrics, collection details, and geographical analytics</p>
         </div>
+        <BucketFilter showCounts={true} />
       </div>
 
       <AgentLiveDashboard />
@@ -624,37 +519,52 @@ export default function ExecDashboard() {
           <h3 className="font-semibold flex items-center gap-2">Performance-Based Paid Cases</h3>
           <p className="text-xs text-muted-foreground mt-1">Detailed performance tracking against collection targets</p>
         </div>
-        <div className="overflow-x-auto max-h-[600px] relative">
-          <table className="w-full font-sans text-xs min-w-[1000px]">
-            <thead className="sticky top-0 z-30 bg-muted border-b border-border shadow-sm">
+        <div className="rounded-xl border border-border/80 bg-card shadow-xs flex flex-col flex-1 min-h-0 overflow-hidden mb-8"><div className="overflow-auto flex-1 max-h-[600px] scrollbar-thin">
+          <table className="w-full table-fixed border-collapse font-sans min-w-[1360px]">
+              <colgroup>
+                <col style={{ width: '60px' }} />
+                <col style={{ width: '160px' }} />
+                <col style={{ width: '110px' }} />
+                <col style={{ width: '90px' }} />
+                <col style={{ width: '90px' }} />
+                <col style={{ width: '130px' }} />
+                <col style={{ width: '120px' }} />
+                <col style={{ width: '110px' }} />
+                <col style={{ width: '110px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '130px' }} />
+                <col style={{ width: '100px' }} />
+              </colgroup>
+            <thead className="sticky top-0 z-30 bg-slate-50 dark:bg-slate-900 border-b border-border shadow-sm">
               <tr>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-center w-12 bg-muted/90 text-xs uppercase text-[10px]">Rank</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-left uppercase tracking-wider text-[11px] bg-muted/90">City</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Collection</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Total Cases</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Paid Count</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">POS Paid Only Count</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Total POS</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Paid POS</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Needed / DRR</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Target Date</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">DRR</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">POS Paid Only POS</th>
-                <th className="text-muted-foreground font-semibold px-3 py-3 text-right uppercase tracking-wider text-[11px] bg-muted/90">Total %</th>
+                <th className="px-3 py-3 text-center uppercase tracking-wider text-[11px] align-middle w-12 text-muted-foreground font-semibold">Rank</th>
+                <th className="px-3 py-3 text-left uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">City</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">Collection</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">Total Cases</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">Paid Count</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">POS Paid Only Count</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">Total POS</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">Paid POS</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">Needed / DRR</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">Target Date</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">DRR</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">POS Paid Only POS</th>
+                <th className="px-3 py-3 text-right uppercase tracking-wider text-[11px] align-middle text-muted-foreground font-semibold">Total %</th>
               </tr>
             </thead>
             <tbody>
               {teamPerfGrouped.map(([bkt, items]) => {
                 const sub = {
-                  collection: items.reduce((s: number, i: any) => s + i.collection, 0),
-                  count: items.reduce((s: number, i: any) => s + i.count, 0),
-                  paid: items.reduce((s: number, i: any) => s + i.paid, 0),
-                  totalPOS: items.reduce((s: number, i: any) => s + i.totalPOS, 0),
-                  paidPOS: items.reduce((s: number, i: any) => s + i.paidPOS, 0),
-                  posPaidOnlyCount: items.reduce((s: number, i: any) => s + i.posPaidOnlyCount, 0),
-                  posPaidOnlyPOS: items.reduce((s: number, i: any) => s + i.posPaidOnlyPOS, 0),
-                  target: items.reduce((s: number, i: any) => s + i.target, 0),
-                  dailyRequiredPOS: items.reduce((s: number, i: any) => s + (i.dailyRequiredPOS || 0), 0),
+                  collection: items.reduce((s: number, i: import('../lib/pivots').ExecCityPivotRow) => s + i.collection, 0),
+                  count: items.reduce((s: number, i: import('../lib/pivots').ExecCityPivotRow) => s + i.count, 0),
+                  paid: items.reduce((s: number, i: import('../lib/pivots').ExecCityPivotRow) => s + i.paid, 0),
+                  totalPOS: items.reduce((s: number, i: import('../lib/pivots').ExecCityPivotRow) => s + i.totalPOS, 0),
+                  paidPOS: items.reduce((s: number, i: import('../lib/pivots').ExecCityPivotRow) => s + i.paidPOS, 0),
+                  posPaidOnlyCount: items.reduce((s: number, i: import('../lib/pivots').ExecCityPivotRow) => s + i.posPaidOnlyCount, 0),
+                  posPaidOnlyPOS: items.reduce((s: number, i: import('../lib/pivots').ExecCityPivotRow) => s + i.posPaidOnlyPOS, 0),
+                  target: items.reduce((s: number, i: import('../lib/pivots').ExecCityPivotRow) => s + i.target, 0),
+                  dailyRequiredPOS: items.reduce((s: number, i: import('../lib/pivots').ExecCityPivotRow) => s + (i.dailyRequiredPOS || 0), 0),
                 };
                 const subPct = sub.totalPOS ? sub.paidPOS / sub.totalPOS : 0;
                 return (
@@ -662,7 +572,7 @@ export default function ExecDashboard() {
                     <tr className="bg-primary/10 border-b border-border">
                       <td colSpan={13} className="px-3 py-2.5 font-sans text-[11px] font-bold text-primary uppercase tracking-[0.1em]">BUCKET {bkt}</td>
                     </tr>
-                    {items.map((item: any) => (
+                    {items.map((item: import('../lib/pivots').ExecCityPivotRow) => (
                       <tr key={item.city} className="border-b border-border transition-colors hover:bg-muted/30">
                         <td className="px-3 py-2 text-center font-bold text-muted-foreground text-xs">{item.globalRank}</td>
                         <td className="px-3 py-2 font-medium cursor-pointer hover:text-primary transition-colors hover:underline" onClick={() => navigateToExplorer({ city: item.city })}>{item.city}</td>
@@ -698,7 +608,7 @@ export default function ExecDashboard() {
                 );
               })}
             </tbody>
-            <tfoot className="bg-primary/10 font-bold sticky bottom-0 z-20 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-primary/20 transition-colors" onClick={() => navigateToExplorer({})}>
+            <tfoot className="sticky bottom-0 z-20 bg-slate-900 dark:bg-[#070910] text-slate-50 dark:text-slate-100 shadow-[0_-3px_10px_rgba(0,0,0,0.25)] cursor-pointer transition-colors" onClick={() => navigateToExplorer({})}>
               <tr>
                 <td className="px-3 py-2 text-center"></td>
                 <td className="px-3 py-2.5 font-bold uppercase text-primary">Grand Total</td>
@@ -728,7 +638,9 @@ export default function ExecDashboard() {
           </table>
         </div>
       </div>
+      </div>
 
+      
     </AppLayout>
   );
 }

@@ -44,13 +44,13 @@ export async function verifyAuditChainIntegrity(): Promise<{
     operation: 'UPDATE' as const,
     entityType: 'LOAN_RECORD' as const,
     entityId: e.agreementid,
-    source: (e.source || 'SYSTEM') as any,
+    source: (e.source || 'SYSTEM') as import('../types/domain').AuditEntry['source'],
     transactionId: e.id,
-    hash: (e as any).hash || '',
-    previousHash: (e as any).previousHash || '',
+    hash: (e as Record<string, unknown>).hash || '',
+    previousHash: (e as Record<string, unknown>).previousHash || '',
   }));
 
-  const res = await verifyAuditChain(mapped as any);
+  const res = await verifyAuditChain(mapped as import('../types/domain').AuditEntry[]);
   return {
     valid: res.isValid,
     totalEntries: res.totalVerified,

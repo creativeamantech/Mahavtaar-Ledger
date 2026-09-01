@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useData } from '../contexts/DataContext';
+import { useDataState, useDataDispatch } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
@@ -11,7 +11,8 @@ import { Target, Trash2, Plus, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function AdvancedTargetsTab() {
-  const { records, targets, setTarget } = useData();
+  const { records, targets } = useDataState();
+  const { setTarget } = useDataDispatch();
   const { user } = useAuth();
   
   // Add Target Form State
@@ -204,7 +205,7 @@ export function AdvancedTargetsTab() {
         <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-4 items-end">
            <div className="space-y-1.5">
              <label className="text-xs font-semibold uppercase text-muted-foreground">Category</label>
-             <Select value={targetCategory} onValueChange={(val: any) => setTargetCategory(val)}>
+             <Select value={targetCategory} onValueChange={(val: string) => setTargetCategory(val)}>
                <SelectTrigger className="font-semibold text-primary"><SelectValue /></SelectTrigger>
                <SelectContent>
                  <SelectItem value="MAIN">Main Target</SelectItem>
@@ -217,7 +218,7 @@ export function AdvancedTargetsTab() {
            
            <div className="space-y-1.5">
              <label className="text-xs font-semibold uppercase text-muted-foreground">Level</label>
-             <Select value={level} onValueChange={(val: any) => { setLevel(val); setSelectedState('ALL'); setSelectedCity('ALL'); }}>
+             <Select value={level} onValueChange={(val: string) => { setLevel(val); setSelectedState('ALL'); setSelectedCity('ALL'); }}>
                <SelectTrigger><SelectValue /></SelectTrigger>
                <SelectContent>
                  <SelectItem value="GLOBAL">Global</SelectItem>

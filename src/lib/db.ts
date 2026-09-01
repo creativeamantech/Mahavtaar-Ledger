@@ -2,7 +2,7 @@ import Dexie, { Table } from 'dexie';
 
 export interface LoanRecord {
   agreementid: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface CustomerFeedback {
@@ -11,6 +11,20 @@ export interface CustomerFeedback {
   contactNumber: string;
   availability: string;
   status: string;
+  standardFeedback?: string;
+  detailedFeedback?: string;
+  ref1Availability?: string;
+  ref1Feedback?: string;
+  ref2Availability?: string;
+  ref2Feedback?: string;
+  ref1?: {
+    availability: string;
+    feedback: string;
+  };
+  ref2?: {
+    availability: string;
+    feedback: string;
+  };
   paidSubStatus?: string;
   amountPaid?: number;
   paymentMode?: string;
@@ -18,7 +32,6 @@ export interface CustomerFeedback {
   nonContactableSubStatus?: string;
   ptpDate?: string;
   cbDate?: string;
-  detailedFeedback?: string;
   detailedFeedbackThirdParty?: string;
   detailedFeedbackAgentDispute?: string;
   overallDetailedFeedback?: string;
@@ -62,7 +75,8 @@ export interface StoredUser {
   email: string;
   role: string;
   passwordHash: string;
-  plainPassword?: string;
+  salt?: string;
+  iterations?: number;
   permissions: { views: string[] };
   assignedExecutiveName?: string;
   maintenanceMode?: boolean;
@@ -109,8 +123,8 @@ export interface SyncJournalRecord {
   tableName: 'loan_records' | 'customer_feedbacks' | 'attendance_logs' | 'state_targets' | 'users';
   recordId: string;
   action: 'INSERT' | 'UPDATE' | 'DELETE';
-  data: any;
-  diff?: any;
+  data: Record<string, unknown>;
+  diff?: Record<string, unknown>;
   peerId: string;
   deviceId: string;
   status: 'QUEUED' | 'SYNCED' | 'FAILED' | 'RETRY';
@@ -123,9 +137,9 @@ export interface SyncConflictRecord {
   id: string;
   tableName: string;
   recordId: string;
-  localData: any;
-  remoteData: any;
-  fieldConflicts: { field: string; localVal: any; remoteVal: any }[];
+  localData: Record<string, unknown>;
+  remoteData: Record<string, unknown>;
+  fieldConflicts: { field: string; localVal: unknown; remoteVal: any }[];
   localTimestamp: string;
   remoteTimestamp: string;
   localPeerId: string;
@@ -134,13 +148,13 @@ export interface SyncConflictRecord {
   detectedAt: string;
   resolvedAt?: string;
   resolutionStrategy?: 'KEEP_LOCAL' | 'KEEP_REMOTE' | 'FIELD_MERGE' | 'MANUAL' | 'LWW';
-  resolvedData?: any;
+  resolvedData?: Record<string, unknown>;
   resolvedBy?: string;
 }
 
 export interface SyncSettingsRecord {
   key: string;
-  value: any;
+  value: unknown;
 }
 
 export interface BackupSnapshotRecord {
@@ -283,7 +297,7 @@ export async function restoreSystemData(fileBuffer: ArrayBuffer) {
     });
 
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Restore failed:', err);
     throw new Error(err.message || 'Failed to restore backup');
   }

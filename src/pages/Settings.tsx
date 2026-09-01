@@ -45,8 +45,9 @@ function SystemTab() {
       await restoreSystemData(buffer);
       toast.success('System restored successfully. Reloading...');
       setTimeout(() => window.location.reload(), 1500);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to restore backup');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to restore backup';
+      toast.error(message);
       e.target.value = '';
     }
   };
@@ -126,7 +127,7 @@ function UserManagementTab() {
     setSheetOpen(true);
   };
 
-  const openEdit = (u: any) => {
+  const openEdit = (u: User) => {
     setEditingUser(u);
     setSheetOpen(true);
   };
@@ -144,7 +145,7 @@ function UserManagementTab() {
             role: role, 
             permissions: { views },
             assignedExecutiveName: data.assignedExecutiveName,
-            maintenanceMode: (data as any).maintenanceMode
+            maintenanceMode: Boolean((data as Record<string, unknown>).maintenanceMode)
         });
         toast.success('User updated successfully');
     } else {
@@ -152,7 +153,7 @@ function UserManagementTab() {
             name: data.name!,
             email: data.email!,
             role: role,
-            password: data.plainPassword!,
+            password: data.password || undefined,
             permissions: { views },
             assignedExecutiveName: data.assignedExecutiveName,
         });
@@ -170,11 +171,11 @@ function UserManagementTab() {
   const columns = [
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
-    { key: 'role', label: 'Role', render: (val: Role) => <StatusBadge status={val} /> },
+    { key: 'role', label: 'Role', render: (val: Role) => <StatusBadge variant={val.toLowerCase()}>{val}</StatusBadge> },
     { 
       key: 'assignedExecutiveName', 
       label: 'Data Mapping (FOS)', 
-      render: (val: string, row: any) => val ? (
+      render: (val: string, row: User) => val ? (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
           {val}
         </span>
@@ -185,13 +186,13 @@ function UserManagementTab() {
     {
       key: 'permissions',
       label: 'Authorized Pages',
-      render: (val: any) => (
+      render: (val: { views?: string[] } | undefined) => (
         <span className="text-xs font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground">
           {val?.views?.length || 0} pages
         </span>
       )
     },
-    { key: 'actions', label: 'Actions', render: (_: any, row: any) => (
+    { key: 'actions', label: 'Actions', render: (_: unknown, row: User) => (
       <div className="flex gap-2">
         <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Pencil className="w-4 h-4" /></Button>
         <Button variant="ghost" size="sm" onClick={() => handleDelete(row.id)} disabled={row.id === currentUser?.id}>
@@ -212,7 +213,7 @@ function UserManagementTab() {
           <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" /> Add User</Button>
         </div>
       </div>
-      <DataTable columns={columns} data={users} pageSize={20} />
+      <DataTable tableId="users-table" columns={columns} data={users} pageSize={20} />
       
       <UserFormSheet 
         open={sheetOpen}

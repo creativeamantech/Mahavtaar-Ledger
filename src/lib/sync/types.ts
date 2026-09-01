@@ -53,8 +53,8 @@ export interface JournalEntry {
   tableName: TableSyncName;
   recordId: string;
   action: 'INSERT' | 'UPDATE' | 'DELETE';
-  data: any;
-  diff?: Record<string, { oldVal: any; newVal: any }>;
+  data: Record<string, unknown>;
+  diff?: Record<string, { oldVal: unknown; newVal: unknown }>;
   peerId: string;
   deviceId: string;
   status: 'QUEUED' | 'SYNCED' | 'FAILED' | 'RETRY';
@@ -65,16 +65,16 @@ export interface JournalEntry {
 
 export interface ConflictFieldDiff {
   field: string;
-  localVal: any;
-  remoteVal: any;
+  localVal: unknown;
+  remoteVal: unknown;
 }
 
 export interface ConflictRecord {
   id: string;
   tableName: string;
   recordId: string;
-  localData: any;
-  remoteData: any;
+  localData: Record<string, unknown>;
+  remoteData: Record<string, unknown>;
   fieldConflicts: ConflictFieldDiff[];
   localTimestamp: string;
   remoteTimestamp: string;
@@ -84,7 +84,7 @@ export interface ConflictRecord {
   detectedAt: string;
   resolvedAt?: string;
   resolutionStrategy?: 'KEEP_LOCAL' | 'KEEP_REMOTE' | 'FIELD_MERGE' | 'MANUAL' | 'LWW';
-  resolvedData?: any;
+  resolvedData?: Record<string, unknown>;
   resolvedBy?: string;
 }
 
@@ -110,7 +110,7 @@ export interface SyncMessageEnvelope {
   targetPeerId?: string; // Broadcast if undefined
   timestamp: string;
   lamport: number;
-  payload: any;
+  payload: unknown;
   signature?: string;
 }
 

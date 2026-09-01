@@ -2,7 +2,12 @@ import type { Config } from "tailwindcss";
 
 export default {
   darkMode: ["class"],
-  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
+  content: [
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
+  ],
   prefix: "",
   theme: {
     container: {
@@ -10,26 +15,28 @@ export default {
       padding: "2rem",
       screens: {
         xs: "360px",
-        "2xl": "1400px",
+        "2xl": "1440px",
       },
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        heading: ["Geist", "sans-serif"],
-        data: ["Geist", "sans-serif"],
+        sans: ["Plus Jakarta Sans", "Inter", "system-ui", "sans-serif"],
+        heading: ["Plus Jakarta Sans", "Inter", "sans-serif"],
+        data: ["Plus Jakarta Sans", "Inter", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "DM Mono", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
-        "border-light": "hsl(var(--border-light))",
+        "border-subtle": "hsl(var(--border-subtle))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         sidebar: {
-          DEFAULT: "#111827",
-          foreground: "#F8FAFC",
-          accent: "#1F2937",
+          DEFAULT: "hsl(var(--sidebar-bg))",
+          foreground: "hsl(var(--sidebar-fg))",
+          border: "hsl(var(--sidebar-border))",
+          accent: "hsl(var(--muted))",
         },
         primary: {
           DEFAULT: "hsl(var(--primary))",
@@ -84,13 +91,14 @@ export default {
           rtp: "hsl(var(--disp-rtp))",
           settled: "hsl(var(--disp-settled))",
           paid: "hsl(var(--disp-paid))",
-        }
+        },
       },
       borderRadius: {
         xl: "var(--radius-xl)",
         lg: "var(--radius-lg)",
         md: "var(--radius-md)",
         sm: "var(--radius-sm)",
+        xs: "var(--radius-xs)",
       },
       keyframes: {
         "accordion-down": {

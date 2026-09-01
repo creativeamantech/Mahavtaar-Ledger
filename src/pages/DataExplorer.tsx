@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useData } from '../contexts/DataContext';
+import { useDataState, useDataDispatch } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { AppLayout } from '../components/layout/AppLayout';
 import { calculateRow } from '../lib/calculations';
@@ -28,6 +29,7 @@ import { StatusBadge } from '../components/explorer/StatusBadge';
 import { ContextStrip } from '../components/explorer/ContextStrip';
 import { FilterStrip } from '../components/explorer/FilterStrip';
 import { MultiCaseModal } from '../components/explorer/MultiCaseModal';
+import { LoanRecord } from '../types/domain';
 
 const STANDARD_KEYS = [
   "agreementid", "agreement_no", "AGREEMENTID", "AGREEMENTNO", "AGREEMENT_NO", "Agreement No", "loan_id", "Loan ID",
@@ -45,7 +47,8 @@ const STANDARD_KEYS = [
 
 export default function DataExplorer() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { records, schema, isLoading, bulkUpdateRecords } = useData();
+  const { records, schema, isLoading } = useDataState();
+  const { bulkUpdateRecords } = useDataDispatch();
   const { user, isExecutive, users } = useAuth();
   const navigate = useNavigate();
 
@@ -91,19 +94,19 @@ export default function DataExplorer() {
   });
 
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
-  const [multiCaseModal, setMultiCaseModal] = useState<{ name: string; records: any[] } | null>(null);
+  const [multiCaseModal, setMultiCaseModal] = useState<{ name: string; records: LoanRecord[] } | null>(null);
   const [columnSearch, setColumnSearch] = useState('');
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Saved Filter Presets
-  const [savedViews, setSavedViews] = useState<any[]>(() => {
+  const [savedViews, setSavedViews] = useState<LoanRecord[]>(() => {
     const saved = localStorage.getItem('dataExplorerSavedViews') || localStorage.getItem('dataExplorerSavedPresets');
     return saved ? JSON.parse(saved) : [];
   });
 
   const allExecutives = useMemo(() => {
-    return Array.from(new Set(records.map((r: any) => String(r.executive_name || r['Executive Name'] || '').trim()).filter(Boolean))).sort();
+    return Array.from(new Set(records.map((r: LoanRecord) => String(r.executive_name || r['Executive Name'] || '').trim()).filter(Boolean))).sort();
   }, [records]);
   
   const allExtraKeys = useMemo(() => {
@@ -164,7 +167,7 @@ export default function DataExplorer() {
   }, [selectedState, selectedCity, selectedBucket, selectedExecutive, selectedAllocation, selectedPaidStatus, searchQuery, minPos, maxPos, setSearchParams]);
 
   const baseRecords = useMemo(() => {
-    if (isExecutive() && user) return records.filter((r: any) => r.executive_name === user.name);
+    if (isExecutive() && user) return records.filter((r: LoanRecord) => r.executive_name === user.name);
     return records;
   }, [records, user, isExecutive]);
 
@@ -176,21 +179,21 @@ export default function DataExplorer() {
     };
   }, [schema]);
 
-  const availableStates = useMemo(() => ['All', ...Array.from(new Set(baseRecords.map((r: any) => String(r.state || r.State || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort()], [baseRecords]);
+  const availableStates = useMemo(() => ['All', ...Array.from(new Set(baseRecords.map((r: LoanRecord) => String(r.state || r.State || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort()], [baseRecords]);
   
   const availableCities = useMemo(() => {
     const stateFiltered = selectedState === 'All' 
       ? baseRecords 
-      : baseRecords.filter((r: any) => String(r.state || r.State || 'UNKNOWN').trim().toUpperCase() === selectedState);
-    return ['All', ...Array.from(new Set(stateFiltered.map((r: any) => String(r.city || r.City || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort()];
+      : baseRecords.filter((r: LoanRecord) => String(r.state || r.State || 'UNKNOWN').trim().toUpperCase() === selectedState);
+    return ['All', ...Array.from(new Set(stateFiltered.map((r: LoanRecord) => String(r.city || r.City || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort()];
   }, [baseRecords, selectedState]);
 
-  const availableBuckets = useMemo(() => ['All', ...Array.from(new Set(baseRecords.map((r: any) => String(r.bom_bkt || 'UNKNOWN').trim()).filter(Boolean))).sort((a,b) => Number(a) - Number(b))], [baseRecords]);
+  const availableBuckets = useMemo(() => ['All', ...Array.from(new Set(baseRecords.map((r: LoanRecord) => String(r.bom_bkt || 'UNKNOWN').trim()).filter(Boolean))).sort((a,b) => Number(a) - Number(b))], [baseRecords]);
 
   const availableExecutives = useMemo(() => {
     const execs = new Set<string>();
     users.filter(u => u.role === 'EXECUTIVE').forEach(u => execs.add(u.name));
-    baseRecords.forEach((r: any) => {
+    baseRecords.forEach((r: LoanRecord) => {
       const e = String(r.executive_name || r['Executive Name'] || 'UNKNOWN').trim();
       if (e && e !== 'UNKNOWN') execs.add(e);
     });
@@ -200,7 +203,7 @@ export default function DataExplorer() {
   // Customer Case Grouping Stats
   const customerStats = useMemo(() => {
     const stats: Record<string, { count: number, totalPos: number }> = {};
-    baseRecords.forEach((r: any) => {
+    baseRecords.forEach((r: LoanRecord) => {
       const rawName = r.customer_name || r.CUSTOMERNAME || r['Customer Name'] || r.CUSTOMER_NAME || r.customername || '';
       const name = String(rawName).trim().toUpperCase();
       const address = addressKey ? String(r[addressKey] || '').trim().toUpperCase() : '';
@@ -218,7 +221,7 @@ export default function DataExplorer() {
 
   // Filter Pipeline
   const filteredRecords = useMemo(() => {
-    return baseRecords.filter((r: any) => {
+    return baseRecords.filter((r: LoanRecord) => {
       if (exactCustomerFingerprint) {
         const rawName = r.customer_name || r.CUSTOMERNAME || r['Customer Name'] || r.CUSTOMER_NAME || r.customername || '';
         const name = String(rawName).trim().toUpperCase();
@@ -270,7 +273,7 @@ export default function DataExplorer() {
     let totalPos = 0;
     let paidCount = 0;
     let clearedAmount = 0;
-    filteredRecords.forEach((r: any) => {
+    filteredRecords.forEach((r: LoanRecord) => {
       totalPos += Number(r.principal_outstanding) || 0;
       const c = calculateRow(r);
       if (c.mainPaid === 1) paidCount += 1;
@@ -282,7 +285,7 @@ export default function DataExplorer() {
   // Sorting
   const sortedRecords = useMemo(() => {
     if (sortConfig.length === 0) return filteredRecords;
-    return [...filteredRecords].sort((a: any, b: any) => {
+    return [...filteredRecords].sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
       for (const sort of sortConfig) {
         let valA = a[sort.key];
         let valB = b[sort.key];
@@ -306,10 +309,19 @@ export default function DataExplorer() {
   // Pagination
   const totalPages = Math.max(1, Math.ceil(sortedRecords.length / itemsPerPage));
   const paginatedRecords = useMemo(() => {
+    if (itemsPerPage === 999999) return sortedRecords;
     return sortedRecords.slice((page - 1) * itemsPerPage, page * itemsPerPage);
   }, [sortedRecords, page, itemsPerPage]);
 
-  const handleRowClick = (r: any) => {
+  const rowVirtualizer = useVirtualizer({
+    count: paginatedRecords.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => density === 'detailed' ? 48 : density === 'comfortable' ? 40 : 32,
+    overscan: 10,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
+  const handleRowClick = (r: LoanRecord) => {
     sessionStorage.setItem('currentCaseList', JSON.stringify(filteredRecords.map(rec => rec.agreementid)));
     navigate(`/customer/${r.agreementid}?${searchParams.toString()}`);
   };
@@ -320,7 +332,7 @@ export default function DataExplorer() {
     const headers = ['Agreement Number', 'Customer Name', 'State', 'City', 'Executive', 'Bucket', 'POS', 'EMI', 'DAC', 'ECS', 'Paid Status', ...extraHeaders];
     const csv = [
       headers.join(','),
-      ...filteredRecords.map((r: any) => {
+      ...filteredRecords.map((r: LoanRecord) => {
         const isPaid = calculateRow(r).mainPaid === 1;
         return [
           `"${r.agreementid || r.agreement_no || r.AGREEMENTNO || r.AGREEMENTID || ''}"`,
@@ -971,7 +983,19 @@ export default function DataExplorer() {
                   </td>
                 </tr>
               ) : (
-                paginatedRecords.map((r: any, idx: number) => {
+                
+                <>
+                {virtualItems.length > 0 && virtualItems[0].start > 0 && (
+                  <tr style={{ height: `${virtualItems[0].start}px` }}>
+                    <td colSpan={12 + (visibleExtraColumns || []).length} style={{ padding: 0, border: 0 }} />
+                  </tr>
+                )
+              }
+              {
+                virtualItems.map((virtualRow) => {
+                  const idx = virtualRow.index;
+                  const r = paginatedRecords[idx];
+
                   const c = calculateRow(r);
                   const isPaid = c.mainPaid === 1;
                   const isPartial = !isPaid && (c.totalCleared > 0 || (Number(r.dac ?? r.DAC) || 0) > 0);
@@ -984,6 +1008,8 @@ export default function DataExplorer() {
 
                   return (
                     <tr 
+                      ref={rowVirtualizer.measureElement}
+                      data-index={virtualRow.index}
                       key={r.id || idx} 
                       className={`hover:bg-muted/30 transition-colors ${rowBorder}`}
                     >
@@ -1152,7 +1178,16 @@ export default function DataExplorer() {
                     </tr>
                   );
                 })
-              )}
+              }
+              {
+                virtualItems.length > 0 && virtualItems[virtualItems.length - 1].end < rowVirtualizer.getTotalSize() && (
+                  <tr style={{ height: `${rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end}px` }}>
+                    <td colSpan={12 + (visibleExtraColumns || []).length} style={{ padding: 0, border: 0 }} />
+                  </tr>
+                )
+              }
+              </>
+            )}
             </tbody>
           </table>
         </div>
@@ -1179,6 +1214,7 @@ export default function DataExplorer() {
                 <option value={25}>25</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
+                <option value={999999}>All (Virtualized)</option>
                 <option value={200}>200</option>
               </select>
             </div>

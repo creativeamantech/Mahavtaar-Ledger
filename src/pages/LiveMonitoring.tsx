@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { AppLayout } from '../components/layout/AppLayout';
-import { useData } from '../contexts/DataContext';
+import { useDataState } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { db, CustomerFeedback, LoanRecord } from '../lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -23,7 +23,7 @@ interface AgentMetrics {
 }
 
 export default function LiveMonitoring() {
-  const { records } = useData();
+  const { records } = useDataState();
   const { users } = useAuth();
   const [dateFilter, setDateFilter] = useState<'today' | 'all'>('today');
   const [sheetData, setSheetData] = useState<{ title: string; customers: LoanRecord[] }>({ title: '', customers: [] });

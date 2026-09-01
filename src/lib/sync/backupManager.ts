@@ -138,7 +138,7 @@ export class BackupManager {
         valid: true,
         details: `Integrity check PASSED. Verified ${parsed.data.loan_records?.length || 0} loan records, ${parsed.data.customer_feedbacks?.length || 0} customer feedbacks, ${parsed.data.users?.length || 0} users.`
       };
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       return { valid: false, details: `JSON Parse error: ${e.message}` };
     }
   }

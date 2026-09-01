@@ -87,11 +87,11 @@ export default function Attendance() {
     { key: 'date', label: 'Date', render: (val: string) => format(parseISO(val), "PPP"), sortable: true },
     { key: 'loginTime', label: 'Login Time', render: (val: string) => format(parseISO(val), "hh:mm a") },
     { key: 'logoutTime', label: 'Logout Time', render: (val: string) => val ? format(parseISO(val), "hh:mm a") : "N/A" },
-    { key: 'totalHours', label: 'Total Hours', render: (_: any, row: AttendanceRecord) => calculateDuration(row.loginTime, row.logoutTime) },
+    { key: 'totalHours', label: 'Total Hours', render: (_: unknown, row: AttendanceRecord) => calculateDuration(row.loginTime, row.logoutTime) },
     { 
        key: 'breakHours',
         label: 'Break Hours',
-        render: (_: any, row: AttendanceRecord) => {
+        render: (_: unknown, row: AttendanceRecord) => {
         let breakMinutes = row.breakDuration || 0;
         if (row.currentBreakStart) {
             const start = parseISO(row.currentBreakStart);
@@ -105,7 +105,7 @@ export default function Attendance() {
     {
       key: 'productiveHours',
       label: 'Productive Hours',
-      render: (_: any, row: AttendanceRecord) => {
+      render: (_: unknown, row: AttendanceRecord) => {
         const { text, deviation } = calculateProductiveHours(row);
         return (
           <div className="flex items-center gap-2">
@@ -209,7 +209,7 @@ export default function Attendance() {
         </div>
 
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-          <DataTable columns={columns} data={filteredRecords} pageSize={25} />
+          <DataTable tableId="attendance-table" columns={columns} data={filteredRecords} pageSize={25} />
         </div>
       </div>
     </AppLayout>

@@ -135,7 +135,7 @@ export function BackupRecoverySection({
           <div className="flex items-center gap-2">
             <select
               value={restoreMode}
-              onChange={(e) => setRestoreMode(e.target.value as any)}
+              onChange={(e) => setRestoreMode(e.target.value as unknown)}
               className="px-2.5 py-1.5 rounded-lg border border-border bg-muted/40 text-[11px] font-semibold"
             >
               <option value="MERGE">Merge Mode</option>

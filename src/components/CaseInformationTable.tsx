@@ -11,7 +11,7 @@ export default function CaseInformationTable({
   onSwitchToMatrix,
   onAssignSingle,
   onAssignBatch
-}: any) {
+}: { records: import('../types/domain').LoanRecord[]; onAssignmentChange: (id: string, exec: string) => void; executives: string[] }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [cityFilter, setCityFilter] = useState(initialCityFilter || 'all');
   const [bucketFilter, setBucketFilter] = useState(initialBucketFilter || 'all');
@@ -20,7 +20,7 @@ export default function CaseInformationTable({
   const [batchExec, setBatchExec] = useState('');
 
   const filteredRecords = useMemo(() => {
-    return records.filter((r: any) => {
+    return records.filter((r: LoanRecord) => {
       const city = String(r.city || r.City || r.location || '').trim();
       const bucket = String(r.bom_bkt || '').trim();
       const exec = String(r.executive_name || r['Executive Name'] || r.EXECUTIVE_NAME || '').trim();
@@ -43,14 +43,14 @@ export default function CaseInformationTable({
     });
   }, [records, cityFilter, bucketFilter, statusFilter, searchTerm]);
 
-  const uniqueCities = useMemo(() => Array.from(new Set(records.map((r:any) => String(r.city || r.City || r.location || '').trim()).filter(Boolean))).sort(), [records]);
-  const uniqueBuckets = useMemo(() => Array.from(new Set(records.map((r:any) => String(r.bom_bkt || '').trim()).filter(Boolean))).sort(), [records]);
+  const uniqueCities = useMemo(() => Array.from(new Set(records.map((r: import('../types/domain').LoanRecord) => String(r.city || r.City || r.location || '').trim()).filter(Boolean))).sort(), [records]);
+  const uniqueBuckets = useMemo(() => Array.from(new Set(records.map((r: import('../types/domain').LoanRecord) => String(r.bom_bkt || '').trim()).filter(Boolean))).sort(), [records]);
 
   const handleToggleSelectAll = () => {
     if (selectedCases.size === filteredRecords.length && filteredRecords.length > 0) {
       setSelectedCases(new Set());
     } else {
-      setSelectedCases(new Set(filteredRecords.map((r:any) => String(r.agreementid || r.agreement_no || r.id))));
+      setSelectedCases(new Set(filteredRecords.map((r: import('../types/domain').LoanRecord) => String(r.agreementid || r.agreement_no || r.id))));
     }
   };
 
@@ -86,12 +86,20 @@ export default function CaseInformationTable({
           
           <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} className="h-9 px-3 rounded-lg bg-background border border-border text-sm outline-none focus:border-primary">
             <option value="all">All Cities</option>
-            {uniqueCities.map((c:any) => <option key={c} value={c}>{c}</option>)}
+            {uniqueCities.map((c: string) => <option key={c} value={c}>{c}</option>)}
           </select>
 
           <select value={bucketFilter} onChange={e => setBucketFilter(e.target.value)} className="h-9 px-3 rounded-lg bg-background border border-border text-sm outline-none focus:border-primary">
             <option value="all">All Buckets</option>
-            {uniqueBuckets.map((b:any) => <option key={b} value={b}>{b}</option>)}
+            {uniqueBuckets.map((b: string) => {
+              const str = String(b).trim();
+              const label = str.toUpperCase().startsWith('BKT') || str.toUpperCase().startsWith('BUCKET')
+                ? str
+                : !isNaN(Number(str))
+                ? `BKT ${str}`
+                : str;
+              return <option key={b} value={b}>{label}</option>;
+            })}
           </select>
 
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="h-9 px-3 rounded-lg bg-background border border-border text-sm outline-none focus:border-primary">
@@ -120,7 +128,7 @@ export default function CaseInformationTable({
               <span className="text-xs font-bold text-primary px-2">{selectedCases.size} selected</span>
               <select value={batchExec} onChange={e => setBatchExec(e.target.value)} className="h-7 px-2 py-0 text-xs rounded bg-background border border-border outline-none focus:border-primary">
                 <option value="">Select Executive...</option>
-                {executives.map((e:any) => <option key={e} value={e}>{e}</option>)}
+                {executives.map((e: string) => <option key={e} value={e}>{e}</option>)}
               </select>
               <Button size="sm" className="h-7 text-xs px-3" disabled={!batchExec} onClick={handleBatchAssign}>Assign Batch</Button>
             </div>
@@ -171,7 +179,7 @@ export default function CaseInformationTable({
                         className={`h-8 px-2 py-1 text-xs rounded border outline-none w-48 ${exec ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-bold' : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 font-bold'}`}
                       >
                         <option value="">-- Unallocated --</option>
-                        {executives.map((e:any) => <option key={e} value={e}>{e}</option>)}
+                        {executives.map((e: string) => <option key={e} value={e}>{e}</option>)}
                       </select>
                     </td>
                   </tr>

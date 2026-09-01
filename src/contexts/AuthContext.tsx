@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             salt: derived.salt,
             iterations: derived.iterations,
           }));
-          await db.users.bulkPut(seedUsers as any);
+          await db.users.bulkPut(seedUsers as import('../types/domain').User[]);
         } else {
           // Cleanup legacy mock users if they still exist
           const legacyIds = ['2', '3', '4'];
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (identifier: string, password: string): Promise<User> => {
     const searchStr = identifier.trim().toLowerCase();
-    const found: any = await db.users.filter(u => 
+    const found: import('../types/domain').User[] = await db.users.filter(u => 
       u.name.trim().toLowerCase() === searchStr || (!!u.email && u.email.trim().toLowerCase() === searchStr)
     ).first();
 
@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!isValid) {
       const attempts = (found.failedLoginAttempts || 0) + 1;
-      const updates: any = { failedLoginAttempts: attempts };
+      const updates: Partial<import('../types/domain').User> = { failedLoginAttempts: attempts };
       if (attempts >= 5) {
         // Lock for 60 seconds
         updates.lockoutUntil = new Date(Date.now() + 60000).toISOString();
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Reset failed attempts & upgrade legacy hash to PBKDF2 if needed
-    const updates: any = {
+    const updates: Partial<import('../types/domain').User> = {
       failedLoginAttempts: 0,
       lockoutUntil: null,
       lastLogin: new Date().toISOString(),
@@ -170,14 +170,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     
     setUsers(prev => [...prev, { ...userWithoutPassword, id }]);
-    await db.users.put(newUser as any);
+    await db.users.put(newUser as import('../types/domain').User);
   };
 
   const updateUser = async (id: string, data: Partial<User> & { password?: string }) => {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, ...data } : u));
     const existing = await db.users.get(id);
     if (existing) {
-      const updatePayload: any = { ...existing, ...data };
+      const updatePayload: Partial<import('../types/domain').User> = { ...existing, ...data };
       if (data.password) {
         const derived = await derivePasswordHash(data.password);
         updatePayload.passwordHash = derived.hash;

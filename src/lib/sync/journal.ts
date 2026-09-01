@@ -17,7 +17,7 @@ export function incrementLamportClock(receivedClock?: number): number {
   return next;
 }
 
-export async function calculateJournalHash(data: any): Promise<string> {
+export async function calculateJournalHash(data: Record<string, unknown>): Promise<string> {
   const str = typeof data === 'string' ? data : JSON.stringify(data || {});
   return await sha256Fallback(str);
 }
@@ -26,8 +26,8 @@ export async function recordJournalChange(
   tableName: TableSyncName,
   recordId: string,
   action: 'INSERT' | 'UPDATE' | 'DELETE',
-  data: any,
-  diff?: Record<string, { oldVal: any; newVal: any }>
+  data: Record<string, unknown>,
+  diff?: Record<string, { oldVal: unknown; newVal: unknown }>
 ): Promise<SyncJournalRecord> {
   const device = getLocalDeviceIdentity();
   const lamport = incrementLamportClock();

@@ -5,6 +5,7 @@
 
 import { calculateRow, safeNumber } from './calculations';
 import { resolveTarget } from './targets';
+import { LoanRecord } from '../types/domain';
 
 export interface CityPivotRow {
   city: string;
@@ -21,6 +22,42 @@ export interface CityPivotRow {
   rollbackPct: number;
   target: number;
   dailyRequiredPOS: number;
+}
+
+export interface BucketCityPivotRow {
+  bkt: string | number;
+  city: string;
+  collection: number;
+  count: number;
+  totalPOS: number;
+  paid: number;
+  paidPOS: number;
+  posPaidOnlyCount: number;
+  posPaidOnlyPOS: number;
+  targetPOS: number;
+  targetDate?: string;
+  target: number;
+  pct: number;
+  dailyRequiredPOS: number;
+  cases: { aggr: string, name: string, pos: number, isPaid: boolean }[];
+}
+
+export interface ExecCityPivotRow {
+  bkt: string | number;
+  city: string;
+  collection: number;
+  count: number;
+  totalPOS: number;
+  paid: number;
+  paidPOS: number;
+  posPaidOnlyCount: number;
+  posPaidOnlyPOS: number;
+  targetPOS: number;
+  targetDate?: string;
+  target: number;
+  pct: number;
+  dailyRequiredPOS: number;
+  cases: { aggr: string, name: string, pos: number, isPaid: boolean }[];
 }
 
 export interface TeamPivotRow {
@@ -52,7 +89,7 @@ export function computeDailyRequiredPOS(targetPOS: number, paidPOS: number, targ
   return needed / (days > 0 ? days : 1);
 }
 
-export function buildCityPivot(records: any[], targets: Record<string, number> = {}): CityPivotRow[] {
+export function buildCityPivot(records: LoanRecord[], targets: Record<string, number> = {}): CityPivotRow[] {
   const map: Record<string, CityPivotRow> = {};
 
   for (let i = 0; i < records.length; i++) {
@@ -112,7 +149,7 @@ export function buildCityPivot(records: any[], targets: Record<string, number> =
     .sort((a, b) => b.count - a.count);
 }
 
-export function buildTeamPivot(records: any[], targets: Record<string, number> = {}): TeamPivotRow[] {
+export function buildTeamPivot(records: LoanRecord[], targets: Record<string, number> = {}): TeamPivotRow[] {
   const map: Record<string, TeamPivotRow> = {};
 
   for (let i = 0; i < records.length; i++) {
@@ -177,7 +214,7 @@ export function buildTeamPivot(records: any[], targets: Record<string, number> =
     .sort((a, b) => String(a.bkt).localeCompare(String(b.bkt)) || a.exec.localeCompare(b.exec));
 }
 
-export function buildCrossTab(records: any[], targets: Record<string, number> = {}) {
+export function buildCrossTab(records: LoanRecord[], targets: Record<string, number> = {}) {
   const execSet = new Set<string>();
   const cityCounts: Record<string, number> = {};
 
@@ -226,8 +263,8 @@ export function buildCrossTab(records: any[], targets: Record<string, number> = 
   return { execs, cities, matrix };
 }
 
-export function buildBucketCityPivot(records: any[], targets: Record<string, number> = {}) {
-  const map: Record<string, any> = {};
+export function buildBucketCityPivot(records: LoanRecord[], targets: Record<string, number> = {}): BucketCityPivotRow[] {
+  const map: Record<string, Omit<BucketCityPivotRow, 'pct' | 'target' | 'dailyRequiredPOS'>> = {};
 
   for (let i = 0; i < records.length; i++) {
     const r = records[i];
@@ -273,17 +310,17 @@ export function buildBucketCityPivot(records: any[], targets: Record<string, num
   }
 
   return Object.values(map)
-    .map((e: any) => ({ 
+    .map((e) => ({ 
       ...e, 
       pct: e.totalPOS > 0 ? e.paidPOS / e.totalPOS : 0,
       target: Math.max(0, e.targetPOS - e.paidPOS),
       dailyRequiredPOS: computeDailyRequiredPOS(e.targetPOS, e.paidPOS, e.targetDate),
     }))
-    .sort((a: any, b: any) => String(a.bkt).localeCompare(String(b.bkt)) || a.city.localeCompare(b.city));
+    .sort((a, b) => String(a.bkt).localeCompare(String(b.bkt)) || a.city.localeCompare(b.city));
 }
 
-export function buildExecCityPivot(records: any[], targets: Record<string, number> = {}) {
-  const map: Record<string, any> = {};
+export function buildExecCityPivot(records: LoanRecord[], targets: Record<string, number> = {}): ExecCityPivotRow[] {
+  const map: Record<string, Omit<ExecCityPivotRow, 'pct' | 'target' | 'dailyRequiredPOS'>> = {};
 
   for (let i = 0; i < records.length; i++) {
     const r = records[i];
@@ -328,7 +365,7 @@ export function buildExecCityPivot(records: any[], targets: Record<string, numbe
     }
   }
 
-  return Object.values(map).map((e: any) => ({
+  return Object.values(map).map((e) => ({
     ...e,
     pct: e.totalPOS > 0 ? e.paidPOS / e.totalPOS : 0,
     target: Math.max(0, e.targetPOS - e.paidPOS),

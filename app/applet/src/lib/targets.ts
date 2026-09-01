@@ -37,7 +37,7 @@ export function resolveTargetPct(
 
 export function findMatchingRecordsCount(
   targetKey: string,
-  records: any[]
+  records: Record<string, unknown>[]
 ): number {
   let count = 0;
   for (const r of records) {
@@ -67,7 +67,7 @@ function targetsHas(targetKey: string, testKey: string): boolean {
 export function findMatchingRecordsCountAccurate(
   targetKey: string,
   targets: Record<string, number>,
-  records: any[]
+  records: Record<string, unknown>[]
 ): number {
   let count = 0;
   for (const r of records) {

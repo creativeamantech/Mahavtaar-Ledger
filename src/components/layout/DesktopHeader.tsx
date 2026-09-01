@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, Search, Bell, UserCircle, Menu, LogOut } from "lucide-react";
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { useData } from '../../contexts/DataContext';
+import { useDataState, useDataDispatch } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { ThemeToggle } from '../ThemeToggle';
@@ -16,7 +16,7 @@ import { AgentNotifications } from '../agent/AgentNotifications';
 import { SyncStatusIndicator } from '../sync/SyncStatusIndicator';
 
 export function DesktopHeader({ collapsed, setCollapsed }: { collapsed?: boolean; setCollapsed?: (val: boolean | ((prev: boolean) => boolean)) => void }) {
-  const { records,  } = useData();
+  const { records,  } = useDataState();
   const { user, logout } = useAuth();
   const location = useLocation();
   const isExplorer = location.pathname === '/explorer';

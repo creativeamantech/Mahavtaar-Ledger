@@ -49,8 +49,8 @@ export async function createOrUpdateUser(
   const existing = await db.users.get(userId);
 
   let passwordHash = existing?.passwordHash || '';
-  let salt = (existing as any)?.salt || '';
-  let iterations = (existing as any)?.iterations || 100000;
+  let salt = (existing as Record<string, unknown>)?.salt || '';
+  let iterations = (existing as Record<string, unknown>)?.iterations || 100000;
 
   if (userData.password) {
     const derived = await derivePasswordHash(userData.password);
@@ -69,10 +69,10 @@ export async function createOrUpdateUser(
     assignedExecutiveName: userData.assignedExecutiveName,
     maintenanceMode: userData.maintenanceMode,
     ...(salt ? { salt, iterations } : {}),
-  } as any;
+  } as import('../../types/domain').User;
 
   // Never store plain password
-  delete (userToSave as any).plainPassword;
+  delete (userToSave as Record<string, unknown>).plainPassword;
 
   await db.transaction('rw', [db.users, db.audit_log, db.sync_journal], async () => {
     await db.users.put(userToSave);

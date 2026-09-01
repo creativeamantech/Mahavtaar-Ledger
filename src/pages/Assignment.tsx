@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from "react";
 import { AppLayout } from "../components/layout/AppLayout";
 import { BucketFilter } from "../components/BucketFilter";
-import { useData } from "../contexts/DataContext";
+import { useDataState, useDataDispatch } from "../contexts/DataContext";
 import { useAuth } from "../contexts/AuthContext";
 import { fmtCur } from "../lib/formatters";
 import { calculateRow } from "../lib/calculations";
@@ -38,9 +38,11 @@ import {
 import { toast } from "sonner";
 
 import CaseInformationTable from '../components/CaseInformationTable';
+import { LoanRecord } from '../types/domain';
 
 export default function Assignment() {
-  const { records, bulkUpdateRecords, auditLog, globalBucket } = useData();
+  const { records, auditLog, globalBucket } = useDataState();
+  const { bulkUpdateRecords } = useDataDispatch();
   const { user, users } = useAuth();
 
   // Filters & Toggles
@@ -134,7 +136,7 @@ export default function Assignment() {
         allocated: number;
         allocatedPos: number;
         execs: Record<string, number>;
-        unallocatedCases: any[];
+        unallocatedCases: LoanRecord[];
       }
     > = {};
 
@@ -270,7 +272,7 @@ export default function Assignment() {
   // Modal State
   const [assignModal, setAssignModal] = useState<{
     title: string;
-    cases: any[];
+    cases: LoanRecord[];
   } | null>(null);
   const [selectedExecs, setSelectedExecs] = useState<
     { name: string; val: string }[]
@@ -290,7 +292,7 @@ export default function Assignment() {
     POS: "Load balances based on monetary value. It intelligently assigns high-value cases to ensure all executives receive a roughly equal total Principal Outstanding (POS) amount, rather than just equal case counts.",
   };
 
-  const openAssignModal = (title: string, cases: any[]) => {
+  const openAssignModal = (title: string, cases: LoanRecord[]) => {
     setAssignModal({ title, cases });
     setSelectedExecs([{ name: existingExecutives[0] || "", val: "" }]);
     setDistMode("EQUAL");

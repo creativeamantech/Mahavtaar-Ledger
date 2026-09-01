@@ -104,13 +104,33 @@ export interface CustomerFeedback {
   agreementid: string;
   customer_name?: string;
   contact_number?: string;
-  disposition: string;
+  contactNumber?: string;
+  availability: string;
+  standardFeedback: string;
+  detailedFeedback?: string;
+  ref1Availability?: string;
+  ref1Feedback?: string;
+  ref2Availability?: string;
+  ref2Feedback?: string;
+  ref1?: {
+    availability: string;
+    feedback: string;
+  };
+  ref2?: {
+    availability: string;
+    feedback: string;
+  };
+  disposition?: string;
   sub_disposition?: string;
+  status?: string;
   ptp_date?: string;
   ptp_amount?: number;
   notes?: string;
-  executive_name: string;
-  timestamp: string;
+  executive_name?: string;
+  agentId?: string;
+  agentName?: string;
+  timestamp?: string;
+  createdAt?: string;
   latitude?: number;
   longitude?: number;
   sync_status?: 'PENDING' | 'SYNCED' | 'FAILED';

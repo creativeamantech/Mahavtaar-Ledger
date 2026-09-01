@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
-import { useData } from '../contexts/DataContext';
+import { useDataState } from '../contexts/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { fmtCur } from '../lib/formatters';
 import { Search, Download, Plus, X, ArrowUp, ArrowDown, Filter, MapPin, Database, DollarSign, Activity, FileText, Settings2 } from 'lucide-react';
@@ -13,16 +13,16 @@ import { BucketFilter } from '../components/BucketFilter';
 
 export default function BandExplorer() {
   const navigate = useNavigate();
-  const { records, globalBucket, isLoading } = useData();
+  const { records, globalBucket, isLoading } = useDataState();
 
   const filteredRecords = useMemo(() => {
     if (!records) return [];
     if (globalBucket === 'ALL') return records;
-    return records.filter((r: any) => String(r.bom_bkt).trim().toUpperCase() === globalBucket);
+    return records.filter((r: LoanRecord) => String(r.bom_bkt).trim().toUpperCase() === globalBucket);
   }, [records, globalBucket]);
 
   const dataWithBands = useMemo(() => {
-    return filteredRecords.map((r: any) => {
+    return filteredRecords.map((r: LoanRecord) => {
         return {
             ...r,
             _posVal: Number(r.principal_outstanding) || 0,

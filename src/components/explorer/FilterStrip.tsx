@@ -3,6 +3,7 @@ import { Search, X, Plus, DollarSign, Filter, ChevronDown, Check } from 'lucide-
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Checkbox } from '../ui/checkbox';
 import { ScrollArea } from '../ui/scroll-area';
+import { LoanRecord } from '../../types/domain';
 
 interface FilterStripProps {
   availableStates: string[];
@@ -38,11 +39,23 @@ interface FilterStripProps {
   onAddCustomFilter: (col: string) => void;
   onRemoveCustomFilter: (col: string) => void;
   onCustomFilterValueChange: (col: string, val: string) => void;
-  baseRecords: any[];
+  baseRecords: LoanRecord[];
 
   onClearSecondary: () => void;
   activeFilterCount: number;
 }
+
+const formatBucketLabel = (b: string) => {
+  if (b === 'All') return 'All Buckets';
+  const str = String(b).trim();
+  if (str.toUpperCase().startsWith('BKT') || str.toUpperCase().startsWith('BUCKET')) {
+    return str;
+  }
+  if (!isNaN(Number(str))) {
+    return `BKT ${str}`;
+  }
+  return str;
+};
 
 export function FilterStrip({
   availableStates,
@@ -124,7 +137,7 @@ export function FilterStrip({
           >
             <option value="All">All Buckets</option>
             {availableBuckets.filter(b => b !== 'All').map(b => (
-              <option key={b} value={b}>Bucket {b}</option>
+              <option key={b} value={b}>{formatBucketLabel(b)}</option>
             ))}
           </select>
           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none opacity-60" />
@@ -330,7 +343,7 @@ export function FilterStrip({
 
         {/* Custom Column Filters */}
         {activeCustomFilters.map(col => {
-          const options = Array.from(new Set(baseRecords.map((r: any) => String(r[col] || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort();
+          const options = Array.from(new Set(baseRecords.map((r: LoanRecord) => String(r[col] || 'UNKNOWN').trim().toUpperCase()).filter(Boolean))).sort();
           const currentVal = customFilterValues[col] || 'All';
           const isColActive = currentVal !== 'All';
 

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { AppLayout } from '../components/layout/AppLayout';
-import { useData } from '../contexts/DataContext';
+import { useDataState } from '../contexts/DataContext';
 import { fmtDate } from '../lib/formatters';
 import { Search, UserCircle, Edit3, ArrowRight, ShieldCheck, AlertCircle, RefreshCw } from 'lucide-react';
 import { verifyAuditChainIntegrity } from '../lib/repositories/auditRepository';
@@ -9,7 +9,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 
 export default function AuditLog() {
-  const { auditLog } = useData();
+  const { auditLog } = useDataState();
   const [search, setSearch] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<{

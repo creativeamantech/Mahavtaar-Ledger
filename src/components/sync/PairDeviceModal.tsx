@@ -78,7 +78,7 @@ export function PairDeviceModal({
       const offer = await onGenerateOffer(targetPeerId.trim());
       setGeneratedOffer(offer);
       toast.success('WebRTC Offer Generated');
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Offer failed: ' + e.message);
     } finally {
       setIsProcessing(false);
@@ -92,7 +92,7 @@ export function PairDeviceModal({
       const answer = await onAcceptOffer(incomingOffer.trim());
       setGeneratedAnswer(answer);
       toast.success('WebRTC Answer Generated');
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Answer failed: ' + e.message);
     } finally {
       setIsProcessing(false);
@@ -106,7 +106,7 @@ export function PairDeviceModal({
       await onAcceptAnswer(incomingAnswer.trim());
       toast.success('Direct P2P DataChannel established successfully!');
       onOpenChange(false);
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Pairing failed: ' + e.message);
     } finally {
       setIsProcessing(false);
@@ -120,7 +120,7 @@ export function PairDeviceModal({
       await onRequestPairingFromPayload(receivedPayload.trim());
       toast.success('Pairing Request Sent! Waiting for approval.');
       onOpenChange(false);
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Failed to request pairing: ' + e.message);
     } finally {
       setIsProcessing(false);

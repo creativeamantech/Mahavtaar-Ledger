@@ -368,7 +368,7 @@ export function AdvancedTargetsTab() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Level</label>
-              <Select value={level} onValueChange={(val: any) => { setLevel(val); setSelectedState('ALL'); setSelectedCity('ALL'); }}>
+              <Select value={level} onValueChange={(val: string) => { setLevel(val); setSelectedState('ALL'); setSelectedCity('ALL'); }}>
                 <SelectTrigger className="h-9 font-medium text-xs">
                   <SelectValue />
                 </SelectTrigger>

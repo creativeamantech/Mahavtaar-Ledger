@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Menu, Search, UserCircle, LogOut, Wifi } from 'lucide-react';
-import { useData } from '../../contexts/DataContext';
+import { useDataState, useDataDispatch } from '../../contexts/DataContext';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ThemeToggle } from '../ThemeToggle';
@@ -37,7 +37,7 @@ export function MobileHeader() {
   const location = useLocation();
   const { user, logout } = useAuth();
   
-  const { records } = useData();
+  const { records } = useDataState();
   const isExplorer = location.pathname === '/explorer';
 
   

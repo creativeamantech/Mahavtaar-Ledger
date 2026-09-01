@@ -170,7 +170,7 @@ export function SyncSettingsTab({
             <label className="font-bold text-foreground">Default Resolution Strategy</label>
             <select
               value={conflictRule}
-              onChange={(e) => setConflictRule(e.target.value as any)}
+              onChange={(e) => setConflictRule(e.target.value as unknown)}
               className="w-full px-3 py-2 rounded-lg border border-border bg-muted/40 text-xs font-semibold"
             >
               <option value="FIELD_MERGE">Smart 3-Way Field-Level Merge (Recommended)</option>

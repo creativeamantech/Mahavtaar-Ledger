@@ -20,7 +20,7 @@ export function SystemHealthDiagnostics() {
       } else {
         toast.error(`System Integrity Audit: Critical issues found (${result.overallScore}/100)`);
       }
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Failed to complete diagnostic scan: ' + e.message);
     } finally {
       setLoading(false);

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "../../contexts/AuthContext";
-import { useData } from "../../contexts/DataContext";
+import { useDataState } from "../../contexts/DataContext";
 import { LoanRecord, CustomerFeedback, db } from "../../lib/db";
 import { format, isToday, parseISO, formatDistanceToNow } from "date-fns";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
@@ -17,7 +17,7 @@ import { toast } from "sonner";
 
 export function AgentLiveDashboard() {
     const { user } = useAuth();
-    const { records } = useData();
+    const { records } = useDataState();
     const [feedbacks, setFeedbacks] = useState<CustomerFeedback[]>([]);
     const [sheetOpen, setSheetOpen] = useState(false);
     const [sheetTitle, setSheetTitle] = useState("");
@@ -25,7 +25,7 @@ export function AgentLiveDashboard() {
   const [sheetCustomers, setSheetCustomers] = useState<LoanRecord[]>([]);
 
   // Attendance logic
-  const [attendanceRecord, setAttendanceRecord] = useState<any>(null);
+  const [attendanceRecord, setAttendanceRecord] = useState<Record<string, unknown>>(null);
   const [isPunching, setIsPunching] = useState(false);
 
   useEffect(() => {
@@ -112,6 +112,57 @@ export function AgentLiveDashboard() {
     if (user?.role !== 'EXECUTIVE') {
         return null;
     }
+
+    const getCustomerName = (agreementid: string) => {
+        return records.find(r => r.AGREEMENTID === agreementid)?.CUSTOMERNAME || agreementid;
+    };
+
+    const getCustomersFromFeedback = (fbs: CustomerFeedback[]) => {
+        const ids = Array.from(new Set(fbs.map(f => f.agreementid)));
+        return records.filter(r => ids.includes(r.AGREEMENTID));
+    };
+
+    const myRecords = records.filter(r => r.AGENT === user?.name || r.AGENT === user?.id);
+
+    const feedbackToday = feedbacks.filter(f => isToday(parseISO(f.createdAt)));
+
+    const ptpFeedbacks = feedbacks.filter(f => f.status === 'PTP');
+    const ptpAgreementIds = Array.from(new Set(ptpFeedbacks.map(f => f.agreementid)));
+    const uniquePtpCustomers = records.filter(r => ptpAgreementIds.includes(r.AGREEMENTID));
+    const totalPTP = uniquePtpCustomers.reduce((sum, r) => sum + (r.POS || 0), 0);
+
+    const paidFeedbacks = feedbacks.filter(f => f.status === 'Paid');
+    const paidAgreementIds = Array.from(new Set(paidFeedbacks.map(f => f.agreementid)));
+    const uniquePaidCustomers = records.filter(r => paidAgreementIds.includes(r.AGREEMENTID));
+    const totalPaid = uniquePaidCustomers.reduce((sum, r) => sum + (r.POS || 0), 0);
+
+    const contactedAgreementIds = Array.from(new Set(feedbacks.map(f => f.agreementid)));
+    const notContactedCustomers = myRecords.filter(r => !contactedAgreementIds.includes(r.AGREEMENTID));
+
+    const statusCounts = feedbacks.reduce((acc, curr) => {
+        acc[curr.status] = (acc[curr.status] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    const feedbackStatusData = Object.entries(statusCounts).map(([name, value]) => ({
+        name,
+        value,
+        fill: `var(--color-${name.toLowerCase().replace(/[^a-z0-9]/g, '')})`
+    }));
+
+    const chartConfig = {
+        value: { label: "Count" },
+        ...Object.keys(statusCounts).reduce((acc, status, index) => {
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6b7280'];
+            acc[status.toLowerCase().replace(/[^a-z0-9]/g, '')] = {
+                label: status,
+                color: colors[index % colors.length]
+            };
+            return acc;
+        }, {} as Record<string, unknown>)
+    };
+
+    const recentActivities = [...feedbacks].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
 
   return (
     <div className="space-y-6">

@@ -1,21 +1,21 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useData } from '../contexts/DataContext';
+import { useDataState } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { AppLayout } from '../components/layout/AppLayout';
 import { db, CustomerFeedback } from '../lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { submitCustomerFeedback } from '../lib/repositories/feedbackRepository';
 import { fmtCur } from '../lib/formatters';
 import { 
   ChevronLeft, ChevronRight, ArrowLeft, PhoneCall, Phone, MessageCircle, 
   MapPin, Calendar, Briefcase, CreditCard, Activity, Search,
-  CheckCircle, XCircle, Clock, AlertTriangle, MessageSquare, Database
+  CheckCircle, XCircle, Clock, AlertTriangle, MessageSquare, Database, FileText, PlusCircle
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { FeedbackModal } from '../components/feedback/FeedbackModal';
 
 const STANDARD_STATUSES = [
   "Paid", "PTP", "CB", "RTP", "RNR", "Non Contactable", 
@@ -32,7 +32,7 @@ export default function CustomerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { records } = useData();
+  const { records } = useDataState();
   const { user } = useAuth();
   
   const feedbacks = useLiveQuery(
@@ -48,22 +48,7 @@ export default function CustomerDetail() {
   
   
   const [otherPropsSearch, setOtherPropsSearch] = useState('');
-  
-  // Feedback Form State
-  const [contactNumber, setContactNumber] = useState('');
-  const [availability, setAvailability] = useState('');
-  const [status, setStatus] = useState('');
-  const [paidSubStatus, setPaidSubStatus] = useState('');
-  const [amountPaid, setAmountPaid] = useState('');
-  const [paymentMode, setPaymentMode] = useState('');
-  const [approvedAmount, setApprovedAmount] = useState('');
-  const [nonContactableSubStatus, setNonContactableSubStatus] = useState('');
-  const [ptpDate, setPtpDate] = useState('');
-  const [cbDate, setCbDate] = useState('');
-  const [detailedFeedback, setDetailedFeedback] = useState('');
-  const [concernNumber, setConcernNumber] = useState('');
-  const [relationName, setRelationName] = useState('');
-  const [overallDetailedFeedback, setOverallDetailedFeedback] = useState('');
+  const [activeModalPhone, setActiveModalPhone] = useState<{ number: string; source: string; name?: string } | null>(null);
 
   const record = useMemo(() => records.find(r => r.agreementid === id), [records, id]);
 
@@ -183,82 +168,29 @@ export default function CustomerDetail() {
     return 'bg-muted text-muted-foreground';
   };
 
-  const handleLogFeedback = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contactNumber || !availability || !status) {
-      toast.error('Please fill required fields (Number, Availability, Status)');
-      return;
-    }
-
-    const feedback: CustomerFeedback = {
-      id: crypto.randomUUID(),
-      agreementid: record.agreementid,
-      contactNumber,
-      availability,
-      status,
-      paidSubStatus: status === 'Paid' ? paidSubStatus : undefined,
-      amountPaid: status === 'Paid' && paidSubStatus === 'DAC' ? Number(amountPaid) : undefined,
-      paymentMode: status === 'Paid' && paidSubStatus === 'DAC' ? paymentMode : undefined,
-      approvedAmount: status === 'Paid' && paidSubStatus === 'Settlement' ? Number(approvedAmount) : undefined,
-      nonContactableSubStatus: status === 'Non Contactable' ? nonContactableSubStatus : undefined,
-      ptpDate: status === 'PTP' ? ptpDate : undefined,
-      cbDate: status === 'CB' ? cbDate : undefined,
-      detailedFeedback: ['RTP', 'Talked with third party', 'Agent dispute'].includes(status) ? detailedFeedback : undefined,
-      concernNumber: availability === 'Yes' ? concernNumber : undefined,
-      relationName: availability === 'Third Party' ? relationName : undefined,
-      overallDetailedFeedback,
-      agentId: user?.id || 'unknown',
-      agentName: user?.name || 'Unknown Agent',
-      createdAt: new Date().toISOString()
-    };
-
-    try {
-      await submitCustomerFeedback(feedback, {
-        actorUserId: user?.id,
-        actorName: user?.name || 'Unknown Agent',
-        actorRole: user?.role || 'EXECUTIVE',
-      });
-      toast.success('Feedback logged successfully');
-      
-      // Reset form (keep number selected for convenience)
-      setAvailability('');
-      setStatus('');
-      setPaidSubStatus('');
-      setAmountPaid('');
-      setPaymentMode('');
-      setApprovedAmount('');
-      setNonContactableSubStatus('');
-      setPtpDate('');
-      setCbDate('');
-      setDetailedFeedback('');
-      setConcernNumber('');
-      setRelationName('');
-      setOverallDetailedFeedback('');
-    } catch (error) {
-      console.error("Failed to log feedback", error);
-      toast.error('Failed to log feedback');
-    }
-  };
-
   const handleExportHistory = () => {
     try {
       if (feedbacks.length === 0) {
         toast.info("No feedback history to export.");
         return;
       }
-      const headers = ['Date', 'Agent', 'Contact Number', 'Availability', 'Status', 'Sub Status', 'Amount', 'Date/Time', 'Notes'];
+      const headers = [
+        'Date',
+        'Agent',
+        'Contact Number',
+        'Availability',
+        'Standard Feedback',
+        'Detailed Feedback'
+      ];
       const csv = [
         headers.join(','),
         ...feedbacks.map(f => [
-          format(new Date(f.createdAt), 'yyyy-MM-dd HH:mm:ss'),
-          `"${f.agentName}"`,
-          f.contactNumber,
-          f.availability,
-          f.status,
-          f.paidSubStatus || f.nonContactableSubStatus || '',
-          f.amountPaid || f.approvedAmount || '',
-          f.ptpDate || f.cbDate || '',
-          `"${(f.detailedFeedback || '')} ${(f.overallDetailedFeedback || '')}"`.trim()
+          `"${format(new Date(f.createdAt), 'yyyy-MM-dd HH:mm:ss')}"`,
+          `"${f.agentName || ''}"`,
+          `"${f.contactNumber || ''}"`,
+          `"${f.availability || ''}"`,
+          `"${f.standardFeedback || f.status || ''}"`,
+          `"${(f.detailedFeedback || f.overallDetailedFeedback || '').replace(/"/g, '""')}"`,
         ].join(','))
       ].join('\n');
       
@@ -272,7 +204,7 @@ export default function CustomerDetail() {
     }
   };
 
-  const currentFeedbackStatus = feedbacks[0]?.status || 'No Action Yet';
+  const currentFeedbackStatus = feedbacks[0]?.standardFeedback || feedbacks[0]?.status || 'No Action Yet';
 
   return (
     <AppLayout>
@@ -341,8 +273,13 @@ export default function CustomerDetail() {
             
             {/* Phone Directory */}
             <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-border bg-muted/20">
-                <h3 className="font-semibold flex items-center gap-2"><Phone className="h-4 w-4" /> Contact Directory</h3>
+              <div className="p-4 border-b border-border bg-muted/20 flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2 text-sm text-foreground">
+                  <Phone className="h-4 w-4 text-primary" /> Contact Directory
+                </h3>
+                <span className="text-xs text-muted-foreground font-medium">
+                  {phones.length} {phones.length === 1 ? 'Number' : 'Numbers'} Available
+                </span>
               </div>
               <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {phones.length === 0 ? (
@@ -350,26 +287,41 @@ export default function CustomerDetail() {
                 ) : (
                   phones.map((p, i) => (
                     <div key={i} className="flex flex-col border border-border rounded-lg p-3 bg-muted/5 hover:border-primary/50 transition-colors">
-                      <div className="flex justify-between items-start mb-2">
+                      <div className="flex justify-between items-start mb-2.5">
                         <div className="flex flex-col">
-                          <span className="font-mono font-bold text-lg leading-none mb-1">{p.number}</span>
+                          <span className="font-mono font-bold text-lg leading-none mb-1 text-foreground">{p.number}</span>
                           {p.name && (
                             <span className="text-[11px] font-bold text-primary/80 uppercase tracking-wider line-clamp-1" title={p.name}>
                               {p.name}
                             </span>
                           )}
                         </div>
-                        <Badge variant="secondary" className="text-[10px] capitalize max-w-[100px] text-center ml-2">{p.source.replace(/_/g, ' ')}</Badge>
+                        <Badge variant="secondary" className="text-[10px] capitalize max-w-[110px] text-center ml-2 truncate">
+                          {p.source.replace(/_/g, ' ')}
+                        </Badge>
                       </div>
                       <div className="flex gap-2 mt-auto">
-                        <a href={`tel:${p.number}`} className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold bg-primary text-primary-foreground px-2 py-1.5 rounded hover:bg-primary/90 transition-colors">
+                        <a 
+                          href={`tel:${p.number}`} 
+                          className="flex-1 inline-flex items-center justify-center gap-1 text-xs font-bold bg-primary text-primary-foreground px-2 py-1.5 rounded hover:bg-primary/90 transition-colors shadow-xs"
+                        >
                           <PhoneCall className="h-3 w-3" /> Call
                         </a>
-                        <a href={`whatsapp://send?phone=91${p.number}&text=Hello`} target="_blank" rel="noreferrer" className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold bg-[#25D366] text-white px-2 py-1.5 rounded hover:bg-[#25D366]/90 transition-colors">
+                        <a 
+                          href={`whatsapp://send?phone=91${p.number}&text=Hello`} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="flex-1 inline-flex items-center justify-center gap-1 text-xs font-bold bg-[#25D366] text-white px-2 py-1.5 rounded hover:bg-[#25D366]/90 transition-colors shadow-xs"
+                        >
                           <MessageCircle className="h-3 w-3" /> WhatsApp
                         </a>
-                        <button onClick={() => setContactNumber(p.number)} className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-bold bg-muted text-muted-foreground px-2 py-1.5 rounded hover:bg-muted/80 transition-colors">
-                          Log Form
+                        <button 
+                          type="button"
+                          onClick={() => setActiveModalPhone(p)} 
+                          className="flex-1 inline-flex items-center justify-center gap-1 text-xs font-bold bg-muted hover:bg-primary/15 text-foreground border border-border hover:border-primary/40 px-2 py-1.5 rounded transition-all cursor-pointer shadow-xs active:scale-95"
+                          title={`Log call feedback for ${p.number}`}
+                        >
+                          <FileText className="h-3 w-3 text-primary" /> Log Form
                         </button>
                       </div>
                     </div>
@@ -451,180 +403,95 @@ export default function CustomerDetail() {
 
           </div>
 
-          {/* RIGHT COLUMN: Feedback Form & History */}
+          {/* RIGHT COLUMN: Audit Stream History */}
           <div className="space-y-6">
             
-            {/* Feedback Form */}
-            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-border bg-primary/10">
-                <h3 className="font-bold text-primary flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Log Interaction</h3>
-              </div>
-              <form onSubmit={handleLogFeedback} className="p-4 space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Contact Number *</label>
-                  <select 
-                    value={contactNumber} 
-                    onChange={e => setContactNumber(e.target.value)}
-                    className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary"
-                    required
-                  >
-                    <option value="">Select number...</option>
-                    {phones.map(p => <option key={p.number} value={p.number}>{p.number} ({p.source})</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Availability *</label>
-                  <div className="flex gap-2">
-                    {['Yes', 'No', 'Third Party'].map(opt => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => setAvailability(opt)}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded border transition-colors ${availability === opt ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border hover:bg-muted'}`}
-                      >
-                        {opt}
-                      </button>
-                    ))}
+            {/* Quick Action Prompt if phone available */}
+            {phones.length > 0 && (
+              <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 rounded-xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/20 text-primary">
+                    <PhoneCall className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Fast Call & Log</h4>
+                    <p className="text-xs text-muted-foreground">Click "Log Form" on any number to record feedback instantly</p>
                   </div>
                 </div>
-
-                {availability === 'Yes' && (
-                  <div>
-                    <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Concern Number</label>
-                    <input type="text" value={concernNumber} onChange={e => setConcernNumber(e.target.value)} className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
-                  </div>
-                )}
-                {availability === 'Third Party' && (
-                  <div>
-                    <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Relation Name *</label>
-                    <input type="text" value={relationName} onChange={e => setRelationName(e.target.value)} required className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Status *</label>
-                  <select 
-                    value={status} 
-                    onChange={e => setStatus(e.target.value)}
-                    className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary"
-                    required
-                  >
-                    <option value="">Select status...</option>
-                    {STANDARD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-
-                {/* Conditional Fields */}
-                {status === 'Paid' && (
-                  <>
-                    <div>
-                      <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Payment Type *</label>
-                      <select value={paidSubStatus} onChange={e=>setPaidSubStatus(e.target.value)} required className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-                        <option value="">Select...</option>
-                        {PAID_SUB_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                    {paidSubStatus === 'DAC' && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Amount *</label>
-                          <input type="number" value={amountPaid} onChange={e=>setAmountPaid(e.target.value)} required className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Mode *</label>
-                          <select value={paymentMode} onChange={e=>setPaymentMode(e.target.value)} required className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-                            <option value="">Select...</option>
-                            <option value="UPI">UPI</option><option value="Net Banking">Net Banking</option><option value="Cash">Cash</option><option value="Cheque">Cheque</option>
-                          </select>
-                        </div>
-                      </div>
-                    )}
-                    {paidSubStatus === 'Settlement' && (
-                       <div>
-                       <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Approved Amount *</label>
-                       <input type="number" value={approvedAmount} onChange={e=>setApprovedAmount(e.target.value)} required className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
-                     </div>
-                    )}
-                  </>
-                )}
-
-                {status === 'Non Contactable' && (
-                  <div>
-                    <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Reason *</label>
-                    <select value={nonContactableSubStatus} onChange={e=>setNonContactableSubStatus(e.target.value)} required className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary">
-                      <option value="">Select...</option>
-                      {NON_CONTACTABLE_REASONS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                )}
-
-                {status === 'PTP' && (
-                  <div>
-                    <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">PTP Date/Time *</label>
-                    <input type="datetime-local" value={ptpDate} onChange={e=>setPtpDate(e.target.value)} required className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
-                  </div>
-                )}
-
-                {status === 'CB' && (
-                  <div>
-                    <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Call Back Date/Time *</label>
-                    <input type="datetime-local" value={cbDate} onChange={e=>setCbDate(e.target.value)} required className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:border-primary" />
-                  </div>
-                )}
-
-                {['RTP', 'Talked with third party', 'Agent dispute'].includes(status) && (
-                  <div>
-                    <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Detailed Feedback *</label>
-                    <textarea value={detailedFeedback} onChange={e=>setDetailedFeedback(e.target.value)} required rows={2} className="w-full rounded-md border border-border bg-card p-2 text-sm focus:outline-none focus:border-primary resize-none"></textarea>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Overall Notes (Optional)</label>
-                  <textarea value={overallDetailedFeedback} onChange={e=>setOverallDetailedFeedback(e.target.value)} rows={2} className="w-full rounded-md border border-border bg-card p-2 text-sm focus:outline-none focus:border-primary resize-none"></textarea>
-                </div>
-
-                <button type="submit" className="w-full h-10 rounded-md bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-                  <CheckCircle className="h-4 w-4" /> Save Feedback
+                <button
+                  type="button"
+                  onClick={() => setActiveModalPhone(phones[0])}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-all shadow-xs"
+                >
+                  <PlusCircle className="h-3.5 w-3.5" /> Log ({phones[0].number})
                 </button>
-              </form>
-            </div>
+              </div>
+            )}
 
-            {/* Feedback History */}
-            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col max-h-[500px]">
+            {/* Feedback History / Audit Stream */}
+            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[480px]">
               <div className="p-4 border-b border-border bg-muted/20 flex items-center justify-between">
-                <h3 className="font-semibold flex items-center gap-2"><Clock className="h-4 w-4" /> Audit Stream</h3>
-                <button onClick={handleExportHistory} className="text-[10px] uppercase font-bold text-primary hover:underline">Export</button>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  <h3 className="font-semibold text-sm text-foreground">Audit Stream</h3>
+                  <span className="text-xs text-muted-foreground">({feedbacks.length} logs)</span>
+                </div>
+                <button 
+                  onClick={handleExportHistory} 
+                  disabled={feedbacks.length === 0}
+                  className="text-xs font-bold text-primary hover:underline disabled:opacity-50 disabled:no-underline"
+                >
+                  Export CSV
+                </button>
               </div>
               <ScrollArea className="flex-1 p-4">
                 {feedbacks.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No feedback history yet.</p>
+                  <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground space-y-2">
+                    <MessageSquare className="h-8 w-8 stroke-1 text-muted-foreground/50" />
+                    <p className="text-sm font-medium">No feedback history yet</p>
+                    <p className="text-xs text-muted-foreground/80 max-w-xs">
+                      Click the "Log Form" button on any phone number above to submit interaction feedback.
+                    </p>
+                  </div>
                 ) : (
                   <div className="space-y-4">
-                    {feedbacks.map(f => (
-                      <div key={f.id} className="relative pl-4 border-l-2 border-primary/20 pb-4 last:pb-0">
-                        <div className="absolute w-2 h-2 rounded-full bg-primary -left-[5px] top-1"></div>
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-bold text-sm text-foreground">{f.status}</span>
-                          <span className="text-[10px] text-muted-foreground">{format(new Date(f.createdAt), 'MMM d, h:mm a')}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground space-y-1">
-                          <div><span className="font-medium text-foreground">Agent:</span> {f.agentName}</div>
-                          <div><span className="font-medium text-foreground">Number:</span> {f.contactNumber}</div>
-                          <div><span className="font-medium text-foreground">Avail:</span> {f.availability}</div>
+                    {feedbacks.map(f => {
+                      const displayStatus = f.standardFeedback || f.status || 'Feedback Logged';
+                      const details = f.detailedFeedback || f.overallDetailedFeedback;
+
+                      return (
+                        <div key={f.id} className="relative pl-4 border-l-2 border-primary/30 pb-4 last:pb-0">
+                          <div className="absolute w-2 h-2 rounded-full bg-primary -left-[5px] top-1"></div>
                           
-                          {f.paidSubStatus && <div><span className="font-medium text-foreground">Sub-status:</span> {f.paidSubStatus}</div>}
-                          {f.amountPaid && <div><span className="font-medium text-foreground">Amount:</span> {fmtCur(f.amountPaid)}</div>}
-                          {f.ptpDate && <div><span className="font-medium text-foreground">PTP Date:</span> {format(new Date(f.ptpDate), 'PP p')}</div>}
-                          {(f.detailedFeedback || f.overallDetailedFeedback) && (
-                            <div className="p-2 mt-2 bg-muted/30 rounded italic border border-border/50">
-                              "{f.detailedFeedback} {f.overallDetailedFeedback}"
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="font-bold text-sm text-foreground">{displayStatus}</span>
+                            <span className="text-[10px] text-muted-foreground">{format(new Date(f.createdAt), 'MMM d, h:mm a')}</span>
+                          </div>
+
+                          <div className="text-xs text-muted-foreground space-y-1.5">
+                            <div className="flex flex-wrap gap-x-3 gap-y-1">
+                              <div><span className="font-medium text-foreground">Agent:</span> {f.agentName}</div>
+                              <div><span className="font-medium text-foreground">Number:</span> <span className="font-mono">{f.contactNumber}</span></div>
+                              <div><span className="font-medium text-foreground">Availability:</span> <span className="font-semibold text-foreground">{f.availability}</span></div>
                             </div>
-                          )}
+
+                            {/* Detailed Feedback */}
+                            {details && (
+                              <div className="p-2.5 bg-muted/40 rounded-lg border border-border/60 text-foreground">
+                                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-0.5 flex items-center gap-1">
+                                  <FileText className="h-3 w-3" /> Remarks
+                                </div>
+                                <p className="italic text-xs">{details}</p>
+                              </div>
+                            )}
+
+                            {/* Legacy extra fields if present */}
+                            {f.amountPaid && <div><span className="font-medium text-foreground">Amount:</span> {fmtCur(f.amountPaid)}</div>}
+                            {f.ptpDate && <div><span className="font-medium text-foreground">PTP Date:</span> {format(new Date(f.ptpDate), 'PP p')}</div>}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </ScrollArea>
@@ -634,6 +501,19 @@ export default function CustomerDetail() {
 
         </div>
       </div>
+
+      {/* Conditional Feedback Window Modal (Auto-detects clicked phone number) */}
+      {activeModalPhone && (
+        <FeedbackModal
+          isOpen={!!activeModalPhone}
+          onClose={() => setActiveModalPhone(null)}
+          agreementId={record.agreementid}
+          customerName={record.customer_name || record['Customer Name'] || record.CUSTOMERNAME}
+          contactNumber={activeModalPhone.number}
+          phoneSource={activeModalPhone.source}
+          phoneLabel={activeModalPhone.name}
+        />
+      )}
     </AppLayout>
   );
 }

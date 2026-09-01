@@ -40,7 +40,7 @@ export function ShiftAttendanceCard() {
     try {
       await punchIn(user.id, user.name, todayDateStr);
       toast.success('Punched in successfully for today!');
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err?.message || 'Failed to punch in');
     }
   };
@@ -53,7 +53,7 @@ export function ShiftAttendanceCard() {
       }
       await punchOut(todayLog.id);
       toast.success('Punched out successfully. Have a great day!');
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err?.message || 'Failed to punch out');
     }
   };
@@ -68,7 +68,7 @@ export function ShiftAttendanceCard() {
         await startBreak(todayLog.id);
         toast.info('Break started. Enjoy your break!');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err?.message || 'Failed to update break status');
     }
   };

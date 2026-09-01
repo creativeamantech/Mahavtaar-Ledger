@@ -17,7 +17,7 @@ export function safeNumber(val: any, defaultVal = 0): number {
 /**
  * Evaluates recovery performance, EMI clearance, shortfall amounts, and rollback qualification.
  */
-export function calculateRow(row: Partial<LoanRecord> | Record<string, any>): LoanRecordComputed {
+export function calculateRow(row: Partial<LoanRecord> | Record<string, unknown>): LoanRecordComputed {
   const e = Math.max(0, safeNumber(row.emi_amt ?? row.EMI ?? row['EMI Amount']));
   const pos = Math.max(0, safeNumber(row.principal_outstanding ?? row.POS ?? row['Principal Outstanding']));
   

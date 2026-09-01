@@ -9,7 +9,7 @@ import {
   CommandItem,
   CommandShortcut,
 } from '@/components/ui/command';
-import { useData } from '../../contexts/DataContext';
+import { useDataState, useDataDispatch } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   LayoutDashboard,
@@ -31,7 +31,7 @@ export function GlobalCommandBar() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
-  const { records } = useData();
+  const { records } = useDataState();
   const { isExecutive } = useAuth();
 
   // Keyboard shortcut listener: Cmd+K or Ctrl+K

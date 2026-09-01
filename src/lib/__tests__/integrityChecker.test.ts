@@ -25,7 +25,7 @@ describe('Data Integrity Diagnostics Engine (Section 43 & Section 70)', () => {
   it('detects missing or duplicate agreement IDs and reports failure', async () => {
     await db.loan_records.bulkPut([
       { agreementid: 'AGR-001', customer_name: 'Customer 1', principal_outstanding: 50000, emi_amt: 2500 },
-      { agreementid: '', customer_name: 'Invalid Empty ID', principal_outstanding: 30000, emi_amt: 1500 } as any,
+      { agreementid: '', customer_name: 'Invalid Empty ID', principal_outstanding: 30000, emi_amt: 1500 } as import('../types/domain').LoanRecord,
     ]);
 
     const report = await runSystemIntegrityCheck();
@@ -36,7 +36,7 @@ describe('Data Integrity Diagnostics Engine (Section 43 & Section 70)', () => {
 
   it('detects invalid NaN financial figures', async () => {
     await db.loan_records.bulkPut([
-      { agreementid: 'AGR-002', customer_name: 'Valid Customer', principal_outstanding: NaN, emi_amt: 2500 } as any,
+      { agreementid: 'AGR-002', customer_name: 'Valid Customer', principal_outstanding: NaN, emi_amt: 2500 } as import('../types/domain').LoanRecord,
     ]);
 
     const report = await runSystemIntegrityCheck();
@@ -71,7 +71,7 @@ describe('Data Integrity Diagnostics Engine (Section 43 & Section 70)', () => {
       salt: derived.salt,
       iterations: derived.iterations,
       permissions: { views: [] }
-    } as any);
+    } as import('../types/domain').LoanRecord);
 
     const report = await runSystemIntegrityCheck();
     const userSecCheck = report.checks.find(c => c.id === 'USER_SECURITY_CREDENTIALS');

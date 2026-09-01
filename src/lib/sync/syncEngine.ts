@@ -184,7 +184,7 @@ export class SyncEngine {
     this.notify();
   }
 
-  private async handlePeerConnected(peerId: string, type: any, metadata?: any) {
+  private async handlePeerConnected(peerId: string, type: string, metadata?: Record<string, unknown>) {
     let peer = await db.sync_peers.get(peerId);
     if (!peer) {
       peer = {
@@ -405,7 +405,7 @@ export class SyncEngine {
     const appliedEntryIds: string[] = [];
 
     for (const entry of incomingEntries) {
-      const table = (db as any)[entry.tableName];
+      const table = (db as Record<string, import('dexie').Table<unknown, unknown>>)[entry.tableName];
       if (!table) continue;
 
       const currentRecord = await table.get(entry.recordId);
@@ -496,7 +496,7 @@ export class SyncEngine {
     return count;
   }
 
-  async notifyLocalChange(tableName: TableSyncName, recordId: string, action: 'INSERT' | 'UPDATE' | 'DELETE', data: any) {
+  async notifyLocalChange(tableName: TableSyncName, recordId: string, action: 'INSERT' | 'UPDATE' | 'DELETE', data: Record<string, unknown>) {
     // Record into journal
     await recordJournalChange(tableName, recordId, action, data);
     // Push immediately to all approved peers
@@ -568,7 +568,7 @@ export class SyncEngine {
         await this.transportManager.broadcast(req);
       }
       this.notify();
-    } catch (err: any) {
+    } catch (err: unknown) {
       throw new Error('Failed to request pairing: ' + err.message);
     }
   }

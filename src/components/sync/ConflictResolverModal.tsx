@@ -18,7 +18,7 @@ interface ConflictResolverModalProps {
   onResolve: (
     conflictId: string,
     resolution: 'KEEP_LOCAL' | 'KEEP_REMOTE' | 'FIELD_MERGE' | 'MANUAL',
-    customData?: any
+    customData?: unknown
   ) => void;
 }
 

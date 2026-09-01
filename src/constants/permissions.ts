@@ -52,7 +52,7 @@ export interface User {
   email?: string;
   role: Role;
   permissions: { views: string[] };
-  plainPassword?: string;
+  password?: string;
   assignedExecutiveName?: string;
   maintenanceMode?: boolean;
 }

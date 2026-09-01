@@ -1,14 +1,16 @@
 import * as XLSX from 'xlsx';
+import { LoanRecord } from '../types/domain';
+import { CityPivotRow, TeamPivotRow, BucketCityPivotRow, ExecCityPivotRow } from './pivots';
 
-export function exportToExcel(data: any[], sheetName: string, fileName: string) {
+export function exportToExcel(data: Record<string, unknown>[], sheetName: string, fileName: string) {
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   XLSX.writeFile(wb, fileName);
 }
 
-export function exportCityPivot(cityPivotData: any[]) {
-  const rows: any[] = cityPivotData.map((c, i) => ({
+export function exportCityPivot(cityPivotData: CityPivotRow[]) {
+  const rows: Record<string, unknown>[] = cityPivotData.map((c, i) => ({
     '#': i + 1,
     'City': c.city,
     'State': c.state,
@@ -42,7 +44,7 @@ export function exportCityPivot(cityPivotData: any[]) {
   exportToExcel(rows, 'City Performance', `City_Performance_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-export function exportTeamPivot(teamPivotData: any[]) {
+export function exportTeamPivot(teamPivotData: TeamPivotRow[]) {
   const rows = teamPivotData.map(e => ({
     'Bucket': e.bkt,
     'Executive': e.exec,
@@ -56,20 +58,20 @@ export function exportTeamPivot(teamPivotData: any[]) {
   exportToExcel(rows, 'Team Performance', `Team_Performance_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-export function exportMatrix(matrixData: { execs: string[]; cities: string[]; matrix: any }, bucket: number) {
+export function exportMatrix(matrixData: { execs: string[]; cities: string[]; matrix: Record<string, Record<string, { totalPOS?: number; paidPOS?: number }>> }, bucket: number) {
   const { execs, cities, matrix } = matrixData;
   const rows = cities.map(city => {
-    const row: any = { City: city };
+    const row: Record<string, unknown> = { City: city };
     execs.forEach(exec => {
       const cell = matrix[city]?.[exec];
-      row[exec] = cell ? (cell.totalPOS ? ((cell.paidPOS / cell.totalPOS) * 100).toFixed(2) + '%' : '0%') : '—';
+      row[exec] = cell ? (cell.totalPOS ? (( (cell.paidPOS || 0) / cell.totalPOS) * 100).toFixed(2) + '%' : '0%') : '—';
     });
     return row;
   });
   exportToExcel(rows, `Matrix Bucket ${bucket}`, `Matrix_Bucket${bucket}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-export function exportRawData(records: any[]) {
+export function exportRawData(records: LoanRecord[]) {
   const rows = records.map(r => ({
     'Agreement ID': r.agreementid,
     'Bucket': r.bom_bkt,
@@ -85,9 +87,8 @@ export function exportRawData(records: any[]) {
   exportToExcel(rows, 'Raw Data', `Raw_Data_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-
-export function exportBucketCityPivot(data: any[]) {
-  const rows: any[] = data.map((c, i) => ({
+export function exportBucketCityPivot(data: BucketCityPivotRow[]) {
+  const rows: Record<string, unknown>[] = data.map((c) => ({
     'Bucket': c.bkt,
     'City': c.city,
     'Collection': c.collection,
@@ -105,8 +106,7 @@ export function exportBucketCityPivot(data: any[]) {
   exportToExcel(rows, 'City Bucket Matrix', `City_Bucket_Matrix_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-
-export function exportExecCityPivot(data: any[]) {
+export function exportExecCityPivot(data: ExecCityPivotRow[]) {
   const rows = data.map(e => ({
     'Bucket': e.bkt,
     'City': e.city,

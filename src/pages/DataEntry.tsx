@@ -3,7 +3,7 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { UploadStepper } from '../components/ui/UploadStepper';
 import { DataTable } from '../components/ui/DataTable';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { useData } from '../contexts/DataContext';
+import { useDataState, useDataDispatch } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { calculateRow } from '../lib/calculations';
 import { fmtCur } from '../lib/formatters';
@@ -12,7 +12,8 @@ import { Search, X, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function DataEntry() {
-  const { records, loadMainFile, loadPaidFile, loadAdditionalFile, loadCorrectedFile, updateRecord, uploadHistory } = useData();
+  const { records, uploadHistory } = useDataState();
+  const { loadMainFile, loadPaidFile, loadAdditionalFile, loadCorrectedFile, updateRecord } = useDataDispatch();
   const { user, isExecutive } = useAuth();
   const [search, setSearch] = useState('');
   const [bucketFilter, setBucketFilter] = useState('all');
@@ -135,8 +136,7 @@ export default function DataEntry() {
         'Executive Name': r.executive_name || '',
         'BOM Bkt': r.bom_bkt,
         'BOM POS': r.bom_pos,
-        'Target POS': c.targetPOS,
-        'Collected Amount': c.collection,
+        'Collected Amount': c.total,
         'Confirmed DAC': r.dac || 0,
         'Provisional DAC': r.provisional_dac || 0,
         'Status': r.is_conflict ? 'Conflict' : (c.mainPaid ? 'Paid' : 'Unpaid'),
@@ -161,9 +161,9 @@ export default function DataEntry() {
     { key: 'principal_outstanding', label: 'POS', align: 'right' as const, hideBelow: 'lg' as const, render: (v: number) => fmtCur(v) },
     {
       key: 'dac', label: 'DAC', align: 'right' as const, width: '90px',
-      render: (_v: number, row: any) => (
+      render: (_v: number, row: LoanRecord) => (
         <EditableCell
-          value={row.dac}
+          value={row.dac || 0}
           source={row.dac_source}
           onSave={(val) => handleFieldUpdate(row.agreementid, 'dac', val)}
         />
@@ -171,21 +171,21 @@ export default function DataEntry() {
     },
     {
       key: 'provisional_dac', label: 'Prov DAC', align: 'right' as const, width: '90px', hideBelow: 'sm' as const,
-      render: (_v: number, row: any) => {
+      render: (_v: number, row: LoanRecord) => {
         if (!row.provisional_dac && !row.is_conflict) return <span className="text-muted-foreground">-</span>;
         return (
           <span className={`inline-flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5 text-right font-sans text-xs ${row.is_conflict ? 'text-destructive font-bold' : 'text-info'}`}>
-            {fmtCur(row.provisional_dac_raw || row.provisional_dac)}
-            {row.is_conflict && <span title={`Conflict with Confirmed DAC (${fmtCur(row.dac)})`}>⚠️</span>}
+            {fmtCur(Number(row.provisional_dac_raw || row.provisional_dac) || 0)}
+            {row.is_conflict && <span title={`Conflict with Confirmed DAC (${fmtCur(row.dac || 0)})`}>⚠️</span>}
           </span>
         );
       }
     },
     {
       key: 'ecs', label: 'ECS', align: 'right' as const, width: '90px', hideBelow: 'sm' as const,
-      render: (_v: number, row: any) => (
+      render: (_v: number, row: LoanRecord) => (
         <EditableCell
-          value={row.ecs}
+          value={row.ecs || 0}
           source={row.ecs_source}
           onSave={(val) => handleFieldUpdate(row.agreementid, 'ecs', val)}
         />
@@ -193,9 +193,9 @@ export default function DataEntry() {
     },
     {
       key: 'special', label: 'Special', align: 'right' as const, width: '90px', hideBelow: 'sm' as const,
-      render: (_v: number, row: any) => (
+      render: (_v: number, row: LoanRecord) => (
         <EditableCell
-          value={row.special}
+          value={row.special || 0}
           source={row.special_source}
           onSave={(val) => handleFieldUpdate(row.agreementid, 'special', val)}
         />
@@ -203,14 +203,14 @@ export default function DataEntry() {
     },
     {
       key: '_total', label: 'Total', align: 'right' as const, sortable: false,
-      render: (_: any, row: any) => {
+      render: (_: unknown, row: LoanRecord) => {
         const c = calculateRow(row);
         return <span className={c.total > 0 ? 'text-success' : 'text-muted-foreground'}>{fmtCur(c.total)}</span>;
       },
     },
     {
       key: '_emiCount', label: 'EMI#', align: 'center' as const, sortable: false, hideBelow: 'sm' as const,
-      render: (_: any, row: any) => {
+      render: (_: unknown, row: LoanRecord) => {
         const c = calculateRow(row);
         const variant = c.emiCount === 0 ? 'unpaid' : c.emiCount === 1 ? 'bucket' : 'paid';
         return <StatusBadge variant={variant}>{c.emiCount}</StatusBadge>;
@@ -218,7 +218,7 @@ export default function DataEntry() {
     },
     {
       key: '_mainPaid', label: 'Status', sortable: false, hideBelow: 'sm' as const,
-      render: (_: any, row: any) => {
+      render: (_: unknown, row: LoanRecord) => {
         const c = calculateRow(row);
         return <StatusBadge variant={c.mainPaid ? 'paid' : 'unpaid'}>{c.mainPaid ? 'PAID' : 'UNPAID'}</StatusBadge>;
       },
@@ -317,10 +317,10 @@ export default function DataEntry() {
       </div>
 
       {/* Data Table */}
-      <DataTable
+      <DataTable tableId="data-entry-table"
         columns={columns}
         data={filteredRecords}
-        rowClassName={(row: any) => {
+        rowClassName={(row: import('../types/domain').LoanRecord) => {
           const c = calculateRow(row);
           if (row.is_conflict) return 'border-l-2 border-l-destructive bg-destructive/5';
           return c.mainPaid ? 'border-l-2 border-l-success' : 'border-l-2 border-border';

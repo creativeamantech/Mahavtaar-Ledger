@@ -1,8 +1,9 @@
 import * as XLSX from 'xlsx';
+import { LoanRecord } from '../types/domain';
 
 export function parseMainFile(fileBuffer: ArrayBuffer) {
   const wb = XLSX.read(fileBuffer, { type: 'array' });
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null }) as any[];
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null }) as LoanRecord[];
 
   return rows.map(row => ({
     ...row,
@@ -33,7 +34,7 @@ export function parseMainFile(fileBuffer: ArrayBuffer) {
 
 export function parsePaidFile(fileBuffer: ArrayBuffer) {
   const wb = XLSX.read(fileBuffer, { type: 'array' });
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null }) as any[];
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null }) as LoanRecord[];
 
   return rows.map(row => {
     const sfdc = parseFloat(row['SFDC'] || row['sfdc']) || 0;
@@ -47,8 +48,8 @@ export function parsePaidFile(fileBuffer: ArrayBuffer) {
   }).filter(r => r.agreementid);
 }
 
-export function mergePaidIntoRecords(existingRecords: any[], paidRows: any[]) {
-  const paidMap: Record<string, any> = {};
+export function mergePaidIntoRecords(existingRecords: LoanRecord[], paidRows: LoanRecord[]) {
+  const paidMap: Record<string, unknown> = {};
   paidRows.forEach(r => { paidMap[r.agreementid] = r; });
 
   return existingRecords.map(rec => {
@@ -86,7 +87,7 @@ export function mergePaidIntoRecords(existingRecords: any[], paidRows: any[]) {
 
 export function parseAdditionalFile(fileBuffer: ArrayBuffer) {
   const wb = XLSX.read(fileBuffer, { type: 'array' });
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null }) as any[];
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null }) as LoanRecord[];
 
   const aggregated: Record<string, { amount: number, dates: string[], firstRow: any }> = {};
   
@@ -115,8 +116,8 @@ export function parseAdditionalFile(fileBuffer: ArrayBuffer) {
   }));
 }
 
-export function mergeAdditionalIntoRecords(existingRecords: any[], additionalRows: any[]) {
-  const additionalMap: Record<string, any> = {};
+export function mergeAdditionalIntoRecords(existingRecords: LoanRecord[], additionalRows: LoanRecord[]) {
+  const additionalMap: Record<string, unknown> = {};
   additionalRows.forEach(r => { additionalMap[r.agreementid] = r; });
 
   let newConflicts = 0;
@@ -165,7 +166,7 @@ export function mergeAdditionalIntoRecords(existingRecords: any[], additionalRow
 
 export function parseCorrectedFile(fileBuffer: ArrayBuffer) {
   const wb = XLSX.read(fileBuffer, { type: 'array' });
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null }) as any[];
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null }) as LoanRecord[];
 
   return rows.map(row => ({
     agreementid: String(row['AGREEMENTID'] || row['agreementid'] || row['Loan ID'] || row['loan_id'] || '').trim(),
@@ -173,8 +174,8 @@ export function parseCorrectedFile(fileBuffer: ArrayBuffer) {
   })).filter(r => r.agreementid);
 }
 
-export function mergeCorrectedIntoRecords(existingRecords: any[], correctedRows: any[]) {
-  const map: Record<string, any> = {};
+export function mergeCorrectedIntoRecords(existingRecords: LoanRecord[], correctedRows: LoanRecord[]) {
+  const map: Record<string, unknown> = {};
   correctedRows.forEach(r => { map[r.agreementid] = r; });
 
   let matched = 0;
@@ -199,7 +200,7 @@ export function mergeCorrectedIntoRecords(existingRecords: any[], correctedRows:
 export function detectColumns(fileBuffer: ArrayBuffer) {
   const wb = XLSX.read(fileBuffer, { type: 'array' });
   const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: null }) as any[];
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: null }) as LoanRecord[];
   if (rows.length === 0) return { headers: [], rowCount: 0, sample: [] };
   const headers = Object.keys(rows[0]);
   return { headers, rowCount: rows.length, sample: rows.slice(0, 3) };

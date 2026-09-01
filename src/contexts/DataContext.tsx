@@ -5,33 +5,40 @@ import { useAuth } from './AuthContext';
 import { atomicFileImport, atomicUpdateLoanRecord, atomicBulkUpdateLoanRecords } from '../lib/repositories/loanRepository';
 import { setTargetRecord, deleteTargetRecord } from '../lib/repositories/targetRepository';
 
-interface DataContextType {
+interface DataStateContextType {
   isLoading: boolean;
-  records: any[];
+  records: LoanRecord[];
+  filteredRecords: LoanRecord[];
   schema: string[];
   targets: Record<string, number>;
   auditLog: AuditEntry[];
   uploadHistory: UploadSession[];
+  globalBucket: string;
+  canUndo: boolean;
+  canRedo: boolean;
+}
+
+interface DataDispatchContextType {
   loadMainFile: (buffer: ArrayBuffer, fileName: string, userName: string) => Promise<{ rowCount: number }>;
   loadPaidFile: (buffer: ArrayBuffer, fileName: string, userName: string) => Promise<{ matched: number; total: number }>;
   loadAdditionalFile: (buffer: ArrayBuffer, fileName: string, userName: string) => Promise<{ matched: number; total: number; stats: any }>;
   loadCorrectedFile: (buffer: ArrayBuffer, fileName: string, userName: string) => Promise<{ matched: number; total: number }>;
-  updateRecord: (agreementid: string, field: string, value: any, userName: string) => Promise<void>;
-  bulkUpdateRecords: (updates: {agreementid: string, field: string, value: any}[], userName: string) => Promise<void>;
+  updateRecord: (agreementid: string, field: string, value: unknown, userName: string) => Promise<void>;
+  bulkUpdateRecords: (updates: {agreementid: string, field: string, value: unknown}[], userName: string) => Promise<void>;
   setTarget: (key: string, pct: number, userName: string) => Promise<void>;
-  globalBucket: string;
   undo: () => Promise<void>;
   redo: () => Promise<void>;
-  canUndo: boolean;
-  canRedo: boolean;
   setGlobalBucket: (val: string) => void;
 }
 
-const DataContext = createContext<DataContextType | null>(null);
+interface DataContextType extends DataStateContextType, DataDispatchContextType {}
+
+const DataStateContext = createContext<DataStateContextType | null>(null);
+const DataDispatchContext = createContext<DataDispatchContextType | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [records, setRecords] = useState<any[]>([]);
+  const [records, setRecords] = useState<LoanRecord[]>([]);
 
   const [schema, setSchema] = useState<string[]>([]);
   const [targets, setTargets] = useState<Record<string, number>>({});
@@ -181,7 +188,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return { matched, total: correctedRows.length };
   }, [user]);
 
-  const updateRecord = useCallback(async (agreementid: string, field: string, value: any, userName: string) => {
+  const updateRecord = useCallback(async (agreementid: string, field: string, value: unknown, userName: string) => {
     let oldVal = '';
     
     setRecords(prev => prev.map(r => {
@@ -216,7 +223,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
 
-  const bulkUpdateRecords = useCallback(async (updates: {agreementid: string, field: string, value: any}[], userName: string) => {
+  const bulkUpdateRecords = useCallback(async (updates: {agreementid: string, field: string, value: unknown}[], userName: string) => {
     const newAudits: AuditEntry[] = [];
     const updateMap = new Map();
     
@@ -357,15 +364,35 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [redoStack, user]);
 
+  const filteredRecords = useMemo(() => {
+    if (!records) return [];
+    if (globalBucket === 'ALL') return records;
+    return records.filter((r: LoanRecord) => String(r.bom_bkt).trim().toUpperCase() === globalBucket);
+  }, [records, globalBucket]);
+
   return (
-    <DataContext.Provider value={{ undo, redo, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0,  isLoading, records, schema, targets, auditLog, uploadHistory, loadMainFile, loadPaidFile, loadAdditionalFile, loadCorrectedFile, updateRecord, bulkUpdateRecords, setTarget, globalBucket, setGlobalBucket }}>
-      {children}
-    </DataContext.Provider>
+    <DataDispatchContext.Provider value={useMemo(() => ({ undo, redo, loadMainFile, loadPaidFile, loadAdditionalFile, loadCorrectedFile, updateRecord, bulkUpdateRecords, setTarget, setGlobalBucket }), [undo, redo, loadMainFile, loadPaidFile, loadAdditionalFile, loadCorrectedFile, updateRecord, bulkUpdateRecords, setTarget, setGlobalBucket])}>
+      <DataStateContext.Provider value={{ canUndo: undoStack.length > 0, canRedo: redoStack.length > 0, isLoading, records, filteredRecords, schema, targets, auditLog, uploadHistory, globalBucket }}>
+        {children}
+      </DataStateContext.Provider>
+    </DataDispatchContext.Provider>
   );
 }
 
-export const useData = () => {
-  const ctx = useContext(DataContext);
-  if (!ctx) throw new Error('useData must be inside DataProvider');
+export const useDataState = () => {
+  const ctx = useContext(DataStateContext);
+  if (!ctx) throw new Error('useDataState must be inside DataProvider');
   return ctx;
+};
+
+export const useDataDispatch = () => {
+  const ctx = useContext(DataDispatchContext);
+  if (!ctx) throw new Error('useDataDispatch must be inside DataProvider');
+  return ctx;
+};
+
+export const useData = () => {
+  const state = useDataState();
+  const dispatch = useDataDispatch();
+  return { ...state, ...dispatch };
 };

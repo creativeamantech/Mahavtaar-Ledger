@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Bell } from "lucide-react";
-import { useData } from '../../contexts/DataContext';
+import { useDataState, useDataDispatch } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Badge } from '../ui/badge';
 import { Link } from 'react-router-dom';
@@ -18,7 +18,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { db, CustomerFeedback } from '../../lib/db';
 
 export function AgentNotifications() {
-  const { records } = useData();
+  const { records } = useDataState();
   const { user } = useAuth();
   const [feedbacks, setFeedbacks] = useState<CustomerFeedback[]>([]);
 

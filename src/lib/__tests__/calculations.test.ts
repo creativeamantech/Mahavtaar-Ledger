@@ -148,4 +148,92 @@ describe('calculations.ts - Financial & Recovery Math Engine', () => {
     expect(res.mainPaid).toBe(1);
     expect(res.teamPaid).toBe(1);
   });
+
+  it('handles settlement approved amount meeting threshold', () => {
+    const row = {
+      agreementid: 'AGR008',
+      principal_outstanding: 100000,
+      emi_amt: 8000,
+      bom_bkt: 3,
+      dac: 25000,
+      settlement_approved_amt: 25000,
+      ecs: 0,
+      special: 0,
+      approx_forclosure: 90000,
+    };
+
+    const res = calculateRow(row);
+    expect(res.total).toBe(25000);
+    expect(res.mainPaid).toBe(1);
+    expect(res.emiCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('handles multi-tier 3x and 4x EMI thresholds in high buckets', () => {
+    const row = {
+      agreementid: 'AGR009',
+      principal_outstanding: 200000,
+      emi_amt: 5000,
+      bom_bkt: 4,
+      dac: 20000, // 4 * 5000
+      ecs: 0,
+      special: 0,
+      approx_forclosure: 180000,
+    };
+
+    const res = calculateRow(row);
+    expect(res.total).toBe(20000);
+    expect(res.emiCount).toBe(4);
+    expect(res.mainPaid).toBe(1);
+    expect(res.rollbackPOS).toBe(200000);
+  });
+
+  it('evaluates ECS and Special collection counts when DAC is 0', () => {
+    const row = {
+      agreementid: 'AGR010',
+      principal_outstanding: 50000,
+      emi_amt: 4000,
+      bom_bkt: 1,
+      dac: 0,
+      ecs: 2000,
+      special: 2000,
+      approx_forclosure: 45000,
+    };
+
+    const res = calculateRow(row);
+    expect(res.total).toBe(4000);
+    expect(res.ecsCount).toBe(1);
+    expect(res.ecsPOS).toBe(50000);
+    expect(res.mainPaid).toBe(1);
+  });
+
+  it('calculates shortfall amounts shortIn1 and shortIn2 accurately', () => {
+    const row = {
+      agreementid: 'AGR011',
+      principal_outstanding: 50000,
+      emi_amt: 5000,
+      bom_bkt: 2,
+      dac: 3000,
+      ecs: 0,
+      special: 0,
+      approx_forclosure: 48000,
+    };
+
+    const res = calculateRow(row);
+    expect(res.shortIn1).toBe(2000); // 5000 - 3000
+
+    const row2 = {
+      agreementid: 'AGR012',
+      principal_outstanding: 50000,
+      emi_amt: 5000,
+      bom_bkt: 2,
+      dac: 7000,
+      ecs: 0,
+      special: 0,
+      approx_forclosure: 48000,
+    };
+
+    const res2 = calculateRow(row2);
+    expect(res2.shortIn1).toBe(0);
+    expect(res2.shortIn2).toBe(3000); // 10000 - 7000
+  });
 });

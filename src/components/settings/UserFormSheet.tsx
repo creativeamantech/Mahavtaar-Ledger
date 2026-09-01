@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Role, User, VIEW_CONFIG, DEFAULT_PERMISSIONS, ViewKey } from "@/constants/permissions";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useData } from "@/contexts/DataContext";
+import { useDataState } from "@/contexts/DataContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Shield, UserCheck, Link2, Sparkles, AlertCircle } from "lucide-react";
@@ -28,7 +28,7 @@ interface UserFormSheetProps {
 }
 
 export function UserFormSheet({ open, onOpenChange, user, onSave }: UserFormSheetProps) {
-    const { records } = useData();
+    const { records } = useDataState();
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [role, setRole] = useState<Role>("EXECUTIVE");

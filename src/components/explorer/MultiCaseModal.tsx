@@ -4,11 +4,12 @@ import { fmtCur } from '../../lib/formatters';
 import { calculateRow } from '../../lib/calculations';
 import { BucketBadge } from './BucketBadge';
 import { StatusBadge } from './StatusBadge';
+import { LoanRecord } from '../../types/domain';
 
 interface MultiCaseModalProps {
   data: {
     name: string;
-    records: any[];
+    records: LoanRecord[];
   } | null;
   onClose: () => void;
   onSelectRecord: (record: any) => void;

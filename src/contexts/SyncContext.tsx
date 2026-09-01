@@ -121,7 +121,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         toast.info('No approved peers connected for mesh sync.');
       }
       await refreshSyncData();
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Sync failed: ' + (e.message || 'Unknown error'));
     } finally {
       setIsSyncing(false);
@@ -133,7 +133,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await syncEngine.approvePeer(peerId, user?.name || 'Admin');
       toast.success('Peer device approved for CRM synchronization');
       await refreshSyncData();
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Failed to approve peer: ' + e.message);
     }
   };
@@ -143,7 +143,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await syncEngine.rejectPeer(peerId);
       toast.info('Peer device rejected');
       await refreshSyncData();
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Failed to reject peer: ' + e.message);
     }
   };
@@ -153,7 +153,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await syncEngine.disablePeer(peerId);
       toast.warning('Peer device synchronization disabled');
       await refreshSyncData();
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Failed to disable peer: ' + e.message);
     }
   };
@@ -163,7 +163,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await syncEngine.reEnablePeer(peerId);
       toast.success('Peer device re-enabled and synchronized');
       await refreshSyncData();
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Failed to re-enable peer: ' + e.message);
     }
   };
@@ -173,7 +173,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await syncEngine.removePeer(peerId);
       toast.success('Peer removed from registry');
       await refreshSyncData();
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Failed to remove peer: ' + e.message);
     }
   };
@@ -187,7 +187,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await resolveConflictRecord(conflictId, resolution, customData, user?.name || 'Admin');
       toast.success(`Conflict resolved with strategy: ${resolution}`);
       await refreshSyncData();
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Failed to resolve conflict: ' + e.message);
     }
   };
@@ -197,7 +197,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       const snap = await backupManager.createBackup('MANUAL', label);
       toast.success(`Backup created: ${snap.checksum} (${snap.recordCounts.records} records)`);
       await refreshSyncData();
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Failed to create backup: ' + e.message);
     }
   };
@@ -207,7 +207,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       const result = await backupManager.restoreBackupFromPayload(payload, mode);
       toast.success(`Backup restored successfully (${result.restoredRecords} records, ${result.restoredFeedbacks} feedbacks)`);
       await refreshSyncData();
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Restore failed: ' + e.message);
     }
   };
@@ -220,7 +220,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     try {
       await backupManager.downloadBackupAsFile(backupId);
       toast.success('Backup file downloaded to local drive');
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Download failed: ' + e.message);
     }
   };
@@ -230,7 +230,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await backupManager.deleteBackup(backupId);
       toast.info('Backup snapshot deleted');
       await refreshSyncData();
-    } catch (e: any) {
+    } catch (e: Record<string, unknown>) {
       toast.error('Failed to delete backup: ' + e.message);
     }
   };

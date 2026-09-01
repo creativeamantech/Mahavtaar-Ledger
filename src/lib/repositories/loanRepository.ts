@@ -35,7 +35,7 @@ export async function fetchAuthorizedLoanRecords(user: User | null): Promise<Loa
   
   if (user.role === 'EXECUTIVE') {
     const targetNames = [
-      (user as any).assignedExecutiveName ? String((user as any).assignedExecutiveName).trim().toLowerCase() : null,
+      (user as Record<string, unknown>).assignedExecutiveName ? String((user as Record<string, unknown>).assignedExecutiveName).trim().toLowerCase() : null,
       user.name ? String(user.name).trim().toLowerCase() : null
     ].filter(Boolean) as string[];
 
@@ -65,7 +65,7 @@ export async function fetchAuthorizedLoanRecords(user: User | null): Promise<Loa
  * This avoids creating 50,000+ audit log entries for a single upload.
  */
 export async function atomicFileImport(
-  mergedData: any[],
+  mergedData: LoanRecord[],
   uploadSession: UploadSession
 ): Promise<MutationResult> {
   const transactionId = crypto.randomUUID();
@@ -83,7 +83,7 @@ export async function atomicFileImport(
       transactionId,
       affectedCount: mergedData.length,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('atomicFileImport failed:', err);
     return {
       success: false,
@@ -128,10 +128,10 @@ export async function atomicUpdateLoanRecord(
 
       // 4. Retrieve latest audit entry for hash-chaining
       const lastAudit = await db.audit_log.orderBy('id').last();
-      const previousHash = lastAudit?.id ? String((lastAudit as any).hash || GENESIS_HASH) : GENESIS_HASH;
+      const previousHash = lastAudit?.id ? String((lastAudit as Record<string, unknown>).hash || GENESIS_HASH) : GENESIS_HASH;
 
       // 5. Build audit entries for modified fields
-      const diff: Record<string, { oldVal: any; newVal: any }> = {};
+      const diff: Record<string, { oldVal: unknown; newVal: unknown }> = {};
       for (const [key, val] of Object.entries(updates)) {
         if (existing[key] !== val) {
           diff[key] = { oldVal: existing[key], newVal: val };
@@ -166,7 +166,7 @@ export async function atomicUpdateLoanRecord(
             changedBy: auditCtx.userName,
             createdAt: timestamp,
             source: auditCtx.source || 'MANUAL',
-            ...( { hash, previousHash, transactionId } as any ),
+            ...( { hash, previousHash, transactionId } as unknown ),
           };
 
           await db.audit_log.add(auditRecord);
@@ -201,7 +201,7 @@ export async function atomicUpdateLoanRecord(
       transactionId,
       affectedCount: 1,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('atomicUpdateLoanRecord failed:', err);
     return {
       success: false,
@@ -248,7 +248,7 @@ export async function atomicBulkUpdateLoanRecords(
         recordsToPut.push(updatedRecord);
 
         // Audit & Journal for this record
-        const diff: Record<string, { oldVal: any; newVal: any }> = {};
+        const diff: Record<string, { oldVal: unknown; newVal: unknown }> = {};
         for (const [key, val] of Object.entries(item.updates)) {
           if (existing[key] !== val) {
             diff[key] = { oldVal: existing[key], newVal: val };
@@ -266,7 +266,7 @@ export async function atomicBulkUpdateLoanRecords(
             changedBy: auditCtx.userName,
             createdAt: timestamp,
             source: auditCtx.source || 'BULK_OPERATION',
-            ...( { transactionId } as any ),
+            ...( { transactionId } as unknown ),
           });
 
           const lamport = incrementLamportClock();
@@ -304,7 +304,7 @@ export async function atomicBulkUpdateLoanRecords(
       transactionId,
       affectedCount: updatesList.length,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('atomicBulkUpdateLoanRecords failed:', err);
     return {
       success: false,

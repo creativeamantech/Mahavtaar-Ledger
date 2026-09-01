@@ -3,12 +3,12 @@ import { ConflictFieldDiff, ConflictStrategy, JournalEntry } from './types';
 
 export interface CRDTMergeResult {
   applied: boolean;
-  mergedData: any;
+  mergedData: Record<string, unknown>;
   hasConflict: boolean;
   conflictRecord?: SyncConflictRecord;
 }
 
-export function detectFieldDifferences(localData: any, remoteData: any): ConflictFieldDiff[] {
+export function detectFieldDifferences(localData: Record<string, unknown>, remoteData: Record<string, unknown>): ConflictFieldDiff[] {
   if (!localData || !remoteData) return [];
   const allKeys = new Set([...Object.keys(localData), ...Object.keys(remoteData)]);
   const diffs: ConflictFieldDiff[] = [];
@@ -39,7 +39,7 @@ export function detectFieldDifferences(localData: any, remoteData: any): Conflic
 
 export async function processCRDTIncomingEntry(
   entry: JournalEntry,
-  currentLocalRecord: any,
+  currentLocalRecord: Record<string, unknown>,
   strategy: ConflictStrategy = 'FIELD_MERGE'
 ): Promise<CRDTMergeResult> {
   const { tableName, recordId, action, data, timestamp: remoteTimestamp, lamport: remoteLamport, peerId: remotePeerId } = entry;
@@ -139,13 +139,13 @@ export async function processCRDTIncomingEntry(
 export async function resolveConflictRecord(
   conflictId: string,
   resolution: 'KEEP_LOCAL' | 'KEEP_REMOTE' | 'FIELD_MERGE' | 'MANUAL',
-  customMergedData?: any,
+  customMergedData?: Record<string, unknown>,
   resolvedBy: string = 'Admin'
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   const conflict = await db.sync_conflicts.get(conflictId);
   if (!conflict) throw new Error('Conflict record not found');
 
-  let finalData: any;
+  let finalData: Record<string, unknown>;
   if (resolution === 'KEEP_LOCAL') {
     finalData = conflict.localData;
   } else if (resolution === 'KEEP_REMOTE') {
@@ -157,7 +157,7 @@ export async function resolveConflictRecord(
   }
 
   // Apply to DB table
-  const table = (db as any)[conflict.tableName];
+  const table = (db as Record<string, import('dexie').Table<unknown, unknown>>)[conflict.tableName];
   if (table && finalData) {
     await table.put(finalData);
   }

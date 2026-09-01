@@ -48,7 +48,7 @@ describe('fileParser.ts - Multi-File Ingestion & Merge Invariants', () => {
     const merged = mergePaidIntoRecords(baseRecords, paidRows);
     expect(merged).toHaveLength(2);
     
-    const rec1 = merged.find((r: any) => r.agreementid === 'AGR_M1');
+    const rec1 = merged.find((r: LoanRecord) => r.agreementid === 'AGR_M1');
     expect(rec1.dac).toBe(5000);
     expect(rec1.dac_source).toBe('PAID_FILE');
   });
@@ -80,10 +80,10 @@ describe('fileParser.ts - Multi-File Ingestion & Merge Invariants', () => {
     expect(result.stats.alreadyCorrected).toBe(1);
     expect(result.stats.newValidProv).toBe(1);
     
-    const rec1 = result.merged.find((r: any) => r.agreementid === 'AGR_M1');
+    const rec1 = result.merged.find((r: LoanRecord) => r.agreementid === 'AGR_M1');
     expect(rec1.dac).toBe(10000); // Maintained corrected value
 
-    const rec2 = result.merged.find((r: any) => r.agreementid === 'AGR_M2');
+    const rec2 = result.merged.find((r: LoanRecord) => r.agreementid === 'AGR_M2');
     expect(rec2.provisional_dac).toBe(4000);
   });
 
@@ -97,7 +97,7 @@ describe('fileParser.ts - Multi-File Ingestion & Merge Invariants', () => {
 
     const result = mergeCorrectedIntoRecords(baseRecords, correctedRows);
     expect(result.matched).toBe(1);
-    const rec2 = result.merged.find((r: any) => r.agreementid === 'AGR_M2');
+    const rec2 = result.merged.find((r: LoanRecord) => r.agreementid === 'AGR_M2');
     expect(rec2.dac).toBe(8000);
     expect(rec2.dac_source).toBe('CORRECTED');
   });

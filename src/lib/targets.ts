@@ -1,3 +1,4 @@
+import { LoanRecord } from '../types/domain';
 export function normalizeKeyPart(v: unknown): string {
   return String(v ?? '').trim().toUpperCase();
 }
@@ -37,7 +38,7 @@ export function resolveTargetPct(
 
 export function findMatchingRecordsCount(
   targetKey: string,
-  records: any[]
+  records: LoanRecord[]
 ): number {
   let count = 0;
   for (const r of records) {
@@ -65,9 +66,9 @@ export function findMatchingRecordsCount(
 function targetsHas(targetKey: string, testKey: string): boolean {
   // If the testKey is exactly the targetKey we are evaluating, it "exists".
   // Note: we can't easily check all targets here without passing the full targets object,
-  // but for the purpose of "how many records would match if this were the ONLY target",
+  // but for the purpose of "how mRecord<string, unknown> records would match if this were the ONLY target",
   // we can just check string equality.
-  // Wait, if we want to know how many records *resolve* to this target given all targets,
+  // Wait, if we want to know how mRecord<string, unknown> records *resolve* to this target given all targets,
   // we need the full targets object. Let's write a better version.
   return targetKey === testKey;
 }
@@ -75,7 +76,7 @@ function targetsHas(targetKey: string, testKey: string): boolean {
 export function findMatchingRecordsCountAccurate(
   targetKey: string,
   targets: Record<string, number>,
-  records: any[]
+  records: LoanRecord[]
 ): number {
   let count = 0;
   for (const r of records) {

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useData } from '../contexts/DataContext';
+import { useDataState } from '../contexts/DataContext';
 import { AppLayout } from '../components/layout/AppLayout';
 import { fmtCur } from '../lib/formatters';
 import { FileText, Search, Download, ExternalLink, Hash, DollarSign, CreditCard, Layers } from 'lucide-react';
@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 
 export default function Ledger() {
   const navigate = useNavigate();
-  const { records, isLoading, globalBucket } = useData();
+  const { records, isLoading, globalBucket } = useDataState();
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const itemsPerPage = 100;
